@@ -93,7 +93,10 @@ def prune(scan_result: ScanResult, dest: Path, show_progress: bool = True) -> Pr
         if current_dir == dest:
             continue
         try:
-            if not any(current_dir.iterdir()):
+            # os.listdir fully materializes the listing in one call, unlike
+            # iterdir()'s generator, which any() would otherwise abandon
+            # half-read the moment it finds a first entry.
+            if not os.listdir(current_dir):
                 _remove_path(current_dir)
                 stats.dirs_removed += 1
         except OSError:

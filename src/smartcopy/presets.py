@@ -85,9 +85,13 @@ def detect_presets(root: Path) -> list[str]:
         detected.append("node")
     if any((root / name).exists() for name in ("requirements.txt", "pyproject.toml", "setup.py")):
         detected.append("python")
-    if (root / "pom.xml").exists() or any(root.glob("build.gradle*")):
+    # list(...) rather than any(...) - any() would abandon the glob's
+    # generator mid-scan the moment it finds a first match instead of
+    # letting it finish and close on its own. These only glob the project
+    # root itself (no "**"), so the match count is always small.
+    if (root / "pom.xml").exists() or list(root.glob("build.gradle*")):
         detected.append("java")
-    if any(root.glob("*.csproj")) or any(root.glob("*.sln")):
+    if list(root.glob("*.csproj")) or list(root.glob("*.sln")):
         detected.append("dotnet")
     if (root / "Cargo.toml").exists():
         detected.append("rust")
