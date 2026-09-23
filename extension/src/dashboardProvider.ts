@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { ProgressUpdate, runCommand } from "./binary";
+import { CancelledError, ProgressUpdate, runCommand } from "./binary";
 import { openDiff } from "./diff";
 
 type IgnoreStatus = "copyignore" | "gitignore" | "none" | "unknown";
@@ -24,6 +24,10 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
   // operation-related message and replay it once the view is visible
   // again, so you always catch up to the real end state.
   private lastOperationMessage: Record<string, unknown> | undefined;
+  // The in-flight command's cancel handle, if any. Buttons are disabled
+  // in the webview while an operation runs, so at most one of these is
+  // ever active at a time - see runAction().
+  private currentCancel: (() => void) | undefined;
 
   constructor(private readonly context: vscode.ExtensionContext) {
     const folder = vscode.workspace.workspaceFolders?.[0];
@@ -86,7 +90,7 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
     this.view?.webview.postMessage({ type: "state", ...this.state });
   }
 
-  private static readonly OPERATION_MESSAGE_TYPES = new Set(["running", "progress", "result", "error"]);
+  private static readonly OPERATION_MESSAGE_TYPES = new Set(["running", "progress", "result", "error", "cancelled"]);
 
   private post(message: Record<string, unknown>): void {
     if (DashboardProvider.OPERATION_MESSAGE_TYPES.has(message.type as string)) {
@@ -119,6 +123,9 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
         return;
       case "run":
         await this.runAction(message.action, message.options ?? {});
+        return;
+      case "cancel":
+        this.currentCancel?.();
         return;
       case "openDiff":
         if (this.state.source && this.state.dest) {
@@ -205,6 +212,13 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
     return (update) => this.post({ type: "progress", action, ...update });
   }
 
+  private async run<T>(args: string[], onProgress?: (update: ProgressUpdate) => void): Promise<T> {
+    const handle = runCommand<T>(this.context, args, onProgress);
+    this.currentCancel = handle.cancel;
+    const { data } = await handle.promise;
+    return data;
+  }
+
   private async runAction(action: string, options: Record<string, unknown>): Promise<void> {
     const source = this.requireSource(action);
     if (!source) {
@@ -220,13 +234,13 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
           if (this.state.dest) {
             args.push("--compare-dest", this.state.dest);
           }
-          const data = await runCommand(this.context, args);
-          this.post({ type: "result", action, data: data.data });
+          const data = await this.run(args);
+          this.post({ type: "result", action, data });
           return;
         }
         case "stats": {
-          const data = await runCommand(this.context, ["stats", source]);
-          this.post({ type: "result", action, data: data.data });
+          const data = await this.run(["stats", source]);
+          this.post({ type: "result", action, data });
           return;
         }
         case "init": {
@@ -237,9 +251,9 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
           if (options.force) {
             args.push("--force");
           }
-          const data = await runCommand(this.context, args);
+          const data = await this.run(args);
           this.postState();
-          this.post({ type: "result", action, data: data.data });
+          this.post({ type: "result", action, data });
           return;
         }
         case "command": {
@@ -248,8 +262,8 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
             return;
           }
           const args = this.withIgnoreFile(["command", source, dest]);
-          const data = await runCommand(this.context, args);
-          this.post({ type: "result", action, data: data.data });
+          const data = await this.run(args);
+          this.post({ type: "result", action, data });
           return;
         }
         case "verify": {
@@ -258,8 +272,8 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
             return;
           }
           const args = this.withIgnoreFile(["verify", source, dest]);
-          const data = await runCommand(this.context, args, this.onProgressFor(action));
-          this.post({ type: "result", action, data: data.data });
+          const data = await this.run(args, this.onProgressFor(action));
+          this.post({ type: "result", action, data });
           return;
         }
         case "zip": {
@@ -267,8 +281,8 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
           if (options.output) {
             args.push("--output", String(options.output));
           }
-          const data = await runCommand(this.context, args, this.onProgressFor(action));
-          this.post({ type: "result", action, data: data.data });
+          const data = await this.run(args, this.onProgressFor(action));
+          this.post({ type: "result", action, data });
           return;
         }
         case "copy": {
@@ -283,15 +297,21 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
           if (options.prune) {
             args.push("--prune", "--yes-prune");
           }
-          const data = await runCommand(this.context, args, this.onProgressFor(action));
-          this.post({ type: "result", action, data: data.data });
+          const data = await this.run(args, this.onProgressFor(action));
+          this.post({ type: "result", action, data });
           return;
         }
         default:
           this.post({ type: "error", action, message: `Unknown action: ${action}` });
       }
     } catch (err) {
-      this.post({ type: "error", action, message: err instanceof Error ? err.message : String(err) });
+      if (err instanceof CancelledError) {
+        this.post({ type: "cancelled", action });
+      } else {
+        this.post({ type: "error", action, message: err instanceof Error ? err.message : String(err) });
+      }
+    } finally {
+      this.currentCancel = undefined;
     }
   }
 

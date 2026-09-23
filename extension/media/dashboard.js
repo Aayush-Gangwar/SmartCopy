@@ -392,18 +392,27 @@
 
     const resultsContainer = h("div", { class: "results" }, []);
     if (running) {
+      const cancelButton = h("button", { onclick: () => vscode.postMessage({ type: "cancel" }) }, ["Cancel"]);
       if (runningProgress && runningProgress.total > 0) {
         const pct = Math.round((runningProgress.completed / runningProgress.total) * 100);
         resultsContainer.appendChild(
           h("div", { class: "result" }, [
             meter(pct),
-            h("span", { class: "summary" }, [
-              `${runningProgress.label}: ${runningProgress.completed}/${runningProgress.total} (${pct}%)`,
+            h("div", { class: "run-row" }, [
+              h("span", { class: "summary" }, [
+                `${runningProgress.label}: ${runningProgress.completed}/${runningProgress.total} (${pct}%)`,
+              ]),
+              cancelButton,
             ]),
           ])
         );
       } else {
-        resultsContainer.appendChild(h("div", { class: "summary" }, [`Running ${running}`, loadingDots()]));
+        resultsContainer.appendChild(
+          h("div", { class: "run-row" }, [
+            h("span", { class: "summary" }, [`Running ${running}`, loadingDots()]),
+            cancelButton,
+          ])
+        );
       }
     } else if (lastResultNode) {
       resultsContainer.appendChild(lastResultNode);
@@ -477,6 +486,13 @@
         lastResultNode = renderError(message.message);
         render();
         showToast(`${message.action} failed`);
+        return;
+      case "cancelled":
+        running = null;
+        runningProgress = null;
+        awaitingPruneConfirm = false;
+        render();
+        showToast(`${message.action} cancelled`);
         return;
     }
   });

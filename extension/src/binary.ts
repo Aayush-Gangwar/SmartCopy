@@ -21,25 +21,50 @@ export interface RunResult<T> {
   data: T;
 }
 
+/** Thrown when cancel() is called on a still-running command. */
+export class CancelledError extends Error {
+  constructor() {
+    super("Cancelled");
+    this.name = "CancelledError";
+  }
+}
+
+export interface RunHandle<T> {
+  promise: Promise<RunResult<T>>;
+  cancel: () => void;
+}
+
 /**
- * Runs the bundled smartcopy binary with --json and resolves with its
- * terminal result. The process's exit code is deliberately not consulted -
+ * Runs the bundled smartcopy binary with --json.
+ *
+ * stdout is a stream of newline-delimited JSON events: zero or more
+ * {"event": "progress", ...} lines (forwarded to onProgress as they
+ * arrive, for a live progress bar instead of a static "running" message),
+ * followed by exactly one terminal {"event": "result", "data": ...} or
+ * {"event": "error", "message": ...} line, which resolves or rejects this
+ * promise. The process's exit code is deliberately not consulted here -
  * the CLI exits non-zero for perfectly normal, structured outcomes too
- * (verify found mismatches, copy skipped a locked file).
+ * (verify found mismatches, copy skipped a locked file), so only the
+ * event content decides the outcome.
+ *
+ * Returns a handle rather than a bare promise so the caller can cancel
+ * the underlying process (killing it, rejecting with CancelledError)
+ * instead of only being able to wait for it.
  */
 export function runCommand<T = unknown>(
   context: vscode.ExtensionContext,
   args: string[],
   onProgress?: (update: ProgressUpdate) => void
-): Promise<RunResult<T>> {
+): RunHandle<T> {
   const exe = binaryPath(context);
   const child = cp.spawn(exe, [...args, "--json"], { cwd: context.extensionPath });
 
   let buffer = "";
   let stderr = "";
   let settled = false;
+  let cancelled = false;
 
-  return new Promise<RunResult<T>>((resolve, reject) => {
+  const promise = new Promise<RunResult<T>>((resolve, reject) => {
     const handleLine = (line: string): void => {
       const trimmed = line.trim();
       if (!trimmed) {
@@ -76,10 +101,18 @@ export function runCommand<T = unknown>(
     });
 
     child.on("error", (err) => {
+      if (cancelled) {
+        return;
+      }
       reject(new Error(`Failed to launch smartcopy binary at ${exe}: ${err.message}`));
     });
 
     child.on("close", (code) => {
+      if (cancelled) {
+        settled = true;
+        reject(new CancelledError());
+        return;
+      }
       if (!settled && buffer.trim()) {
         handleLine(buffer);
       }
@@ -88,4 +121,14 @@ export function runCommand<T = unknown>(
       }
     });
   });
+
+  const cancel = (): void => {
+    if (settled || cancelled) {
+      return;
+    }
+    cancelled = true;
+    child.kill();
+  };
+
+  return { promise, cancel };
 }
