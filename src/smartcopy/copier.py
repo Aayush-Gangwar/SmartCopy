@@ -4,6 +4,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
+from .progress import progress_ticker
 from .scanner import ScanResult
 
 
@@ -20,17 +21,19 @@ class CopyStats:
         return (self.bytes_skipped / total * 100) if total else 0.0
 
 
-def execute(scan_result: ScanResult, dest: Path) -> CopyStats:
+def execute(scan_result: ScanResult, dest: Path, show_progress: bool = True) -> CopyStats:
     dest.mkdir(parents=True, exist_ok=True)
     bytes_copied = 0
     files_copied = 0
-    for rel in scan_result.included_files:
-        src_path = scan_result.root / rel
-        dest_path = dest / rel
-        dest_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src_path, dest_path)
-        files_copied += 1
-        bytes_copied += dest_path.stat().st_size
+    with progress_ticker(len(scan_result.included_files), show_progress, "Copying") as tick:
+        for rel in scan_result.included_files:
+            src_path = scan_result.root / rel
+            dest_path = dest / rel
+            dest_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src_path, dest_path)
+            files_copied += 1
+            bytes_copied += dest_path.stat().st_size
+            tick()
 
     return CopyStats(
         files_copied=files_copied,

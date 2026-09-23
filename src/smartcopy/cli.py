@@ -79,7 +79,7 @@ def copy(
             abort=True,
         )
 
-    stats = execute(result, dest_root)
+    stats = execute(result, dest_root, show_progress=True)
     render_copy_summary(stats)
 
 
