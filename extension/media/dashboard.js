@@ -8,9 +8,18 @@
   let running = null;
   let runningProgress = null; // {label, completed, total}
   let lastResultNode = null;
+  let lastAction = null; // drives which action button shows as "active"
   let awaitingPruneConfirm = false;
   let pendingCopyOptions = null;
   let zipOutput = null;
+
+  // Form control values, kept outside the DOM so they survive the full
+  // re-render every "running"/"progress"/"result" message triggers -
+  // otherwise every rerender recreated these inputs from scratch and threw
+  // away whatever the user had just picked.
+  let formState = { preset: "", force: false, incremental: false, prune: false };
+  // Same reasoning for whether each options section is expanded.
+  let sectionState = { init: false, zip: false, copy: false };
 
   function h(tag, attrs, children) {
     const el = document.createElement(tag);
@@ -46,7 +55,8 @@
   }
 
   function actionButton(label, action, onClick) {
-    return h("button", { onclick: onClick }, [label]);
+    const classes = lastAction === action ? "active" : undefined;
+    return h("button", { class: classes, onclick: onClick }, [label]);
   }
 
   function folderRow(label, key, pickMsg) {
@@ -58,8 +68,13 @@
     ]);
   }
 
-  function optionsSection(label, contentNodes) {
-    return h("details", { class: "options-section" }, [h("summary", {}, [label]), ...contentNodes]);
+  function optionsSection(label, key, contentNodes) {
+    const details = h("details", { class: "options-section" }, [h("summary", {}, [label]), ...contentNodes]);
+    details.open = sectionState[key];
+    details.addEventListener("toggle", () => {
+      sectionState[key] = details.open;
+    });
+    return details;
   }
 
   function statusBadge() {
@@ -275,14 +290,43 @@
     root.appendChild(folderRow("Destination", "dest", "pickDest"));
     root.appendChild(ignoreFileRow());
 
-    const incrementalCheckbox = h("input", { type: "checkbox", id: "incremental" });
-    const pruneCheckbox = h("input", { type: "checkbox", id: "prune" });
+    const incrementalCheckbox = h("input", {
+      type: "checkbox",
+      id: "incremental",
+      onchange: (e) => {
+        formState.incremental = e.target.checked;
+      },
+    });
+    incrementalCheckbox.checked = formState.incremental;
+
+    const pruneCheckbox = h("input", {
+      type: "checkbox",
+      id: "prune",
+      onchange: (e) => {
+        formState.prune = e.target.checked;
+      },
+    });
+    pruneCheckbox.checked = formState.prune;
+
     const presetSelect = h(
       "select",
-      {},
+      {
+        onchange: (e) => {
+          formState.preset = e.target.value;
+        },
+      },
       [h("option", { value: "" }, ["(auto-detect)"]), ...PRESETS.map((p) => h("option", { value: p }, [p]))]
     );
-    const forceCheckbox = h("input", { type: "checkbox", id: "force" });
+    presetSelect.value = formState.preset;
+
+    const forceCheckbox = h("input", {
+      type: "checkbox",
+      id: "force",
+      onchange: (e) => {
+        formState.force = e.target.checked;
+      },
+    });
+    forceCheckbox.checked = formState.force;
 
     root.appendChild(
       h("div", { class: "actions" }, [
@@ -294,19 +338,19 @@
     );
 
     root.appendChild(
-      optionsSection("Init options", [
+      optionsSection("Init options", "init", [
         h("div", { class: "copy-row" }, [
           h("label", {}, ["Preset:", presetSelect]),
           h("label", {}, [forceCheckbox, " Force overwrite"]),
           actionButton("Init", "init", () =>
-            run("init", { preset: presetSelect.value || undefined, force: forceCheckbox.checked })
+            run("init", { preset: formState.preset || undefined, force: formState.force })
           ),
         ]),
       ])
     );
 
     root.appendChild(
-      optionsSection("Zip options", [
+      optionsSection("Zip options", "zip", [
         h("div", { class: "copy-row" }, [
           h("span", { class: "row-value" }, [zipOutput || "(default output path)"]),
           h("button", { onclick: () => vscode.postMessage({ type: "pickZipOutput" }) }, ["Choose Output..."]),
@@ -316,12 +360,12 @@
     );
 
     root.appendChild(
-      optionsSection("Copy options", [
+      optionsSection("Copy options", "copy", [
         h("div", { class: "copy-row" }, [
           h("label", {}, [incrementalCheckbox, " Incremental"]),
           h("label", {}, [pruneCheckbox, " Remove stale files (mirror)"]),
           actionButton("Copy", "copy", () => {
-            const options = { incremental: incrementalCheckbox.checked, prune: pruneCheckbox.checked };
+            const options = { incremental: formState.incremental, prune: formState.prune };
             if (options.prune && state.dest) {
               pendingCopyOptions = options;
               awaitingPruneConfirm = true;
@@ -376,6 +420,7 @@
         return;
       case "running":
         running = message.action;
+        lastAction = message.action;
         runningProgress = null;
         render();
         return;
@@ -391,6 +436,13 @@
           render();
           showPruneConfirmModal(message.data.would_prune || [], () => run("copy", pendingCopyOptions));
           return;
+        }
+        if (message.action === "init") {
+          // "force overwrite" is a one-shot safety flag - auto-clear it
+          // after a successful use instead of leaving it silently checked
+          // for whatever gets clicked next.
+          formState.force = false;
+          formState.preset = "";
         }
         lastResultNode = renderResult(message.action, message.data);
         render();

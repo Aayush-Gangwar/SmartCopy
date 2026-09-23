@@ -18,6 +18,11 @@ button {
 button:hover {
   background: var(--vscode-button-hoverBackground);
 }
+button.active {
+  outline: 2px solid var(--vscode-focusBorder, #007acc);
+  outline-offset: 1px;
+  font-weight: 600;
+}
 
 .options-section {
   margin-bottom: 12px;
