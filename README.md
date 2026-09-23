@@ -140,4 +140,8 @@ dist/
 
 ## What's next
 
-A VS Code extension is planned next, along with PyPI packaging.
+A VS Code extension already exists — see [`extension/README.md`](extension/README.md) for the sidebar dashboard, cancellable operations, and native diff viewing. PyPI packaging and native Windows Explorer integration are next on the roadmap.
+
+| Copy and Prune | Verify Diff |
+|---|---|
+| ![SmartCopy Copy](extension/images/copy.png) | ![Verify diff](extension/images/verify_diff.gif) |
