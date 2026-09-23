@@ -4,6 +4,7 @@
 
   let state = { source: null, dest: null, ignoreFile: null, ignoreStatus: "unknown" };
   let running = null;
+  let runningProgress = null; // {label, completed, total}
   let lastResultNode = null;
 
   function h(tag, attrs, children) {
@@ -52,6 +53,24 @@
     ]);
   }
 
+  function meter(pct) {
+    return h("div", { class: "meter" }, [h("div", { class: "meter-fill", style: `width:${pct}%` }, [])]);
+  }
+
+  function loadingDots() {
+    return h("span", { class: "loading-dots" }, [h("span", {}, ["."]), h("span", {}, ["."]), h("span", {}, ["."])]);
+  }
+
+  function showToast(message) {
+    const toast = h("div", { class: "toast" }, [message]);
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add("show"));
+    setTimeout(() => {
+      toast.classList.remove("show");
+      setTimeout(() => toast.remove(), 300);
+    }, 1800);
+  }
+
   function renderFileList(title, items) {
     if (!items || items.length === 0) return null;
     return h("div", { class: "file-list" }, [
@@ -61,10 +80,13 @@
   }
 
   function renderPreview(data) {
+    const total = (data.included_size || 0) + (data.skipped_size || 0);
+    const pct = total ? Math.round((data.skipped_size / total) * 100) : 0;
     return h("div", { class: "result" }, [
+      meter(pct),
       h("div", { class: "summary" }, [
         `${data.included_count} files (${humanSize(data.included_size)}) will be copied - ` +
-          `${data.skipped_dirs.length + data.skipped_files.length} skipped (${humanSize(data.skipped_size)} saved)`,
+          `${data.skipped_dirs.length + data.skipped_files.length} skipped (${humanSize(data.skipped_size)} saved, ${pct}%)`,
       ]),
       h("div", { class: "columns" }, [
         h("div", { class: "col" }, [
@@ -80,9 +102,12 @@
   }
 
   function renderStats(data) {
+    const total = (data.included_size || 0) + (data.skipped_size || 0);
+    const pct = total ? Math.round((data.skipped_size / total) * 100) : 0;
     return h("div", { class: "result" }, [
       h("div", {}, [`Detected: ${data.preset_names.join(", ")}`]),
-      h("div", { class: "summary" }, [`${humanSize(data.skipped_size)} of bloat found`]),
+      meter(pct),
+      h("div", { class: "summary" }, [`${humanSize(data.skipped_size)} of bloat out of ${humanSize(total)} total (${pct}%)`]),
       renderFileList("Bloat found", [...data.skipped_dirs, ...data.skipped_files]),
     ]);
   }
@@ -196,7 +221,19 @@
 
     const resultsContainer = h("div", { class: "results" }, []);
     if (running) {
-      resultsContainer.appendChild(h("div", { class: "summary" }, [`Running ${running}...`]));
+      if (runningProgress && runningProgress.total > 0) {
+        const pct = Math.round((runningProgress.completed / runningProgress.total) * 100);
+        resultsContainer.appendChild(
+          h("div", { class: "result" }, [
+            meter(pct),
+            h("span", { class: "summary" }, [
+              `${runningProgress.label}: ${runningProgress.completed}/${runningProgress.total} (${pct}%)`,
+            ]),
+          ])
+        );
+      } else {
+        resultsContainer.appendChild(h("div", { class: "summary" }, [`Running ${running}`, loadingDots()]));
+      }
     } else if (lastResultNode) {
       resultsContainer.appendChild(lastResultNode);
     }
@@ -215,19 +252,31 @@
         };
         render();
         return;
+      case "toast":
+        showToast(message.message);
+        return;
       case "running":
         running = message.action;
+        runningProgress = null;
+        render();
+        return;
+      case "progress":
+        runningProgress = { label: message.label, completed: message.completed, total: message.total };
         render();
         return;
       case "result":
         running = null;
+        runningProgress = null;
         lastResultNode = renderResult(message.action, message.data);
         render();
+        showToast(`${message.action} complete`);
         return;
       case "error":
         running = null;
+        runningProgress = null;
         lastResultNode = renderError(message.message);
         render();
+        showToast(`${message.action} failed`);
         return;
     }
   });

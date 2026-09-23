@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
-import { runCommand } from "./binary";
+import { ProgressUpdate, runCommand } from "./binary";
 import { openDiff } from "./diff";
 
 type IgnoreStatus = "copyignore" | "gitignore" | "none" | "unknown";
@@ -93,6 +93,7 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
         return;
       case "copyToClipboard":
         await vscode.env.clipboard.writeText(message.text);
+        this.view?.webview.postMessage({ type: "toast", message: "Copied to clipboard" });
         return;
     }
   }
@@ -128,6 +129,10 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
       return null;
     }
     return this.state.dest;
+  }
+
+  private onProgressFor(action: string): (update: ProgressUpdate) => void {
+    return (update) => this.view?.webview.postMessage({ type: "progress", action, ...update });
   }
 
   private async runAction(action: string, options: Record<string, unknown>): Promise<void> {
@@ -177,12 +182,12 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
           if (!dest) {
             return;
           }
-          const data = await runCommand(this.context, ["verify", source, dest]);
+          const data = await runCommand(this.context, ["verify", source, dest], this.onProgressFor(action));
           this.view?.webview.postMessage({ type: "result", action, data: data.data });
           return;
         }
         case "zip": {
-          const data = await runCommand(this.context, ["zip", source]);
+          const data = await runCommand(this.context, ["zip", source], this.onProgressFor(action));
           this.view?.webview.postMessage({ type: "result", action, data: data.data });
           return;
         }
@@ -191,7 +196,11 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
           if (!dest) {
             return;
           }
-          const data = await runCommand(this.context, ["copy", source, dest, "--yes"]);
+          const data = await runCommand(
+            this.context,
+            ["copy", source, dest, "--yes"],
+            this.onProgressFor(action)
+          );
           this.view?.webview.postMessage({ type: "result", action, data: data.data });
           return;
         }
@@ -217,7 +226,7 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';" />
   <link rel="stylesheet" href="${mediaUri("dashboard.css")}" />
   <title>SmartCopy</title>
 </head>

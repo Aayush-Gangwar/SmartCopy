@@ -116,6 +116,60 @@ li.clickable:hover {
   opacity: 0.8;
 }
 
+.meter {
+  height: 8px;
+  background: var(--vscode-input-background);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.meter-fill {
+  height: 100%;
+  background: var(--vscode-charts-green, #4caf50);
+  transition: width 0.25s ease-out;
+}
+
+.loading-dots span {
+  opacity: 0;
+  animation: loading-dot-fade 1.4s infinite;
+}
+.loading-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.loading-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes loading-dot-fade {
+  0%,
+  80%,
+  100% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+.toast {
+  position: fixed;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%) translateY(8px);
+  background: var(--vscode-notifications-background, #2d2d2d);
+  color: var(--vscode-notifications-foreground, #cccccc);
+  border: 1px solid var(--vscode-notifications-border, transparent);
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  z-index: 2000;
+  pointer-events: none;
+}
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
 .code {
   background: var(--vscode-textCodeBlock-background);
   padding: 8px;
