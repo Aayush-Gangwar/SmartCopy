@@ -4,6 +4,7 @@
   "displayName": "SmartCopy",
   "description": "CTRL+A for developers - copy only source code, never dependencies.",
   "version": "0.1.0",
+  "license": "MIT",
   "icon": "media/displayicon.png",
   "engines": {
     "vscode": "^1.85.0"
