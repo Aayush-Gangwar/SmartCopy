@@ -3,8 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
+import pyperclip
 import typer
 
+from .commandgen import build_command
 from .copier import execute
 from .ignore import IgnoreRules
 from .presets import PRESETS, default_patterns, detect_presets
@@ -82,6 +84,33 @@ def copy(
 
     stats = execute(result, dest_root, show_progress=True)
     render_copy_summary(stats)
+
+
+@app.command(name="command")
+def command_cmd(
+    paths: list[Path] = typer.Argument(
+        ..., help="[SRC] DEST - SRC defaults to the current directory when omitted."
+    ),
+    ignore_file: Optional[Path] = typer.Option(None, "--ignore-file", help="Path to a .copyignore file."),
+) -> None:
+    """Generate a robocopy/rsync command (and copy it to the clipboard) instead of copying now."""
+    src, dest = _resolve_src_dest(paths)
+    root = src.resolve()
+    rules = _load_rules(root, ignore_file)
+    command_text, has_negation = build_command(root, dest.resolve(), rules)
+
+    console.print(command_text)
+    try:
+        pyperclip.copy(command_text)
+        console.print("[green]Copied to clipboard.[/green]")
+    except Exception:
+        console.print("[yellow]Could not access the clipboard - copy the command above manually.[/yellow]")
+
+    if has_negation:
+        console.print(
+            "[yellow]Warning: '!negation' rules in your ignore file can't be expressed in this "
+            "command and were omitted. Use 'smartcopy copy' directly if you rely on them.[/yellow]"
+        )
 
 
 @app.command(name="zip")
