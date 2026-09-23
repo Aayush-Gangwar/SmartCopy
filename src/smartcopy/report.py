@@ -79,6 +79,8 @@ def render_copy_summary(stats: CopyStats) -> None:
         f"[green]Copied {stats.files_copied} files[/green] "
         f"([bold]{_human_size(stats.bytes_copied)}[/bold])"
     )
+    if stats.files_unchanged:
+        console.print(f"[cyan]{stats.files_unchanged} files unchanged, skipped[/cyan]")
     console.print(f"[red]Skipped {stats.dirs_skipped} directories[/red]")
     console.print(
         f"[bold]Saved {_human_size(stats.bytes_skipped)} "

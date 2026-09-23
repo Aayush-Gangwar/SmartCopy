@@ -69,6 +69,9 @@ def copy(
     ),
     ignore_file: Optional[Path] = typer.Option(None, "--ignore-file", help="Path to a .copyignore file."),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt."),
+    incremental: bool = typer.Option(
+        False, "--incremental", help="Skip files unchanged since last copy (by size + mtime)."
+    ),
 ) -> None:
     src, dest = _resolve_src_dest(paths)
     root = src.resolve()
@@ -82,7 +85,7 @@ def copy(
             abort=True,
         )
 
-    stats = execute(result, dest_root, show_progress=True)
+    stats = execute(result, dest_root, show_progress=True, incremental=incremental)
     render_copy_summary(stats)
 
 
