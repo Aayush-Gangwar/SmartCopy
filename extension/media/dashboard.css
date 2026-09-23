@@ -18,6 +18,13 @@ button {
 button:hover {
   background: var(--vscode-button-hoverBackground);
 }
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+button:disabled:hover {
+  background: var(--vscode-button-background);
+}
 button.active {
   outline: 2px solid var(--vscode-focusBorder, #007acc);
   outline-offset: 1px;

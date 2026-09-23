@@ -56,7 +56,19 @@
 
   function actionButton(label, action, onClick) {
     const classes = lastAction === action ? "active" : undefined;
-    return h("button", { class: classes, onclick: onClick }, [label]);
+    const busy = running !== null;
+    return h("button", { class: classes, disabled: busy ? "" : undefined, onclick: busy ? null : onClick }, [
+      label,
+    ]);
+  }
+
+  // Anything that changes the inputs an in-flight operation is already
+  // using (source/dest/ignore-file) is disabled while one is running -
+  // otherwise a late-arriving result could describe inputs you've since
+  // changed away from.
+  function secondaryButton(label, onClick) {
+    const busy = running !== null;
+    return h("button", { disabled: busy ? "" : undefined, onclick: busy ? null : onClick }, [label]);
   }
 
   function folderRow(label, key, pickMsg) {
@@ -64,7 +76,7 @@
     return h("div", { class: "row" }, [
       h("span", { class: "row-label" }, [label]),
       h("span", { class: "row-value" }, [value]),
-      h("button", { onclick: () => vscode.postMessage({ type: pickMsg }) }, ["Change..."]),
+      secondaryButton("Change...", () => vscode.postMessage({ type: pickMsg })),
     ]);
   }
 
@@ -92,12 +104,12 @@
       return h("div", { class: "row" }, [
         h("span", { class: "row-label" }, ["Ignore file"]),
         h("span", { class: "row-value" }, [state.ignoreFile]),
-        h("button", { onclick: () => vscode.postMessage({ type: "clearIgnoreFile" }) }, ["Clear override"]),
+        secondaryButton("Clear override", () => vscode.postMessage({ type: "clearIgnoreFile" })),
       ]);
     }
     return h("div", { class: "row" }, [
       statusBadge(),
-      h("button", { onclick: () => vscode.postMessage({ type: "pickIgnoreFile" }) }, ["Override ignore file..."]),
+      secondaryButton("Override ignore file...", () => vscode.postMessage({ type: "pickIgnoreFile" })),
     ]);
   }
 
@@ -353,7 +365,7 @@
       optionsSection("Zip options", "zip", [
         h("div", { class: "copy-row" }, [
           h("span", { class: "row-value" }, [zipOutput || "(default output path)"]),
-          h("button", { onclick: () => vscode.postMessage({ type: "pickZipOutput" }) }, ["Choose Output..."]),
+          secondaryButton("Choose Output...", () => vscode.postMessage({ type: "pickZipOutput" })),
           actionButton("Zip", "zip", () => run("zip", { output: zipOutput || undefined })),
         ]),
       ])
@@ -402,15 +414,25 @@
   window.addEventListener("message", (event) => {
     const message = event.data;
     switch (message.type) {
-      case "state":
+      case "state": {
+        const prev = state;
         state = {
           source: message.source,
           dest: message.dest,
           ignoreFile: message.ignoreFile,
           ignoreStatus: message.ignoreStatus,
         };
+        // A result describes a specific (source, dest, ignore file)
+        // combination - if any of those actually changed, the result
+        // still on screen no longer describes what's selected, so it's
+        // actively misleading rather than just stale. Clear it rather
+        // than leave it looking current.
+        if (prev.source !== state.source || prev.dest !== state.dest || prev.ignoreFile !== state.ignoreFile) {
+          lastResultNode = null;
+        }
         render();
         return;
+      }
       case "zipOutput":
         zipOutput = message.path;
         render();
