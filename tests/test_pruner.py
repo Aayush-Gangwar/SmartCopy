@@ -123,7 +123,12 @@ def test_prune_reports_failure_for_undeletable_file(tmp_path: Path) -> None:
     try:
         stats = prune(_scan(src), dest, show_progress=False)
     finally:
-        os.chmod(stale, stat.S_IWRITE)  # restore so tmp_path cleanup can remove it
+        # Restore so tmp_path cleanup can remove it - but only if it's still
+        # there. On POSIX, deletability is governed by the containing
+        # directory's write permission, not the file's own mode, so the
+        # delete below may have actually succeeded despite chmod.
+        if stale.exists():
+            os.chmod(stale, stat.S_IWRITE)
 
     if stale.exists():
         assert len(stats.failed) == 1

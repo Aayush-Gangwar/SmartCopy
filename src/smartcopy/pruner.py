@@ -23,14 +23,25 @@ def _is_link(path: Path) -> bool:
 
 
 def _remove_path(path: Path) -> int:
-    """Remove one filesystem entry, returning bytes freed (0 for directories)."""
+    """Remove one filesystem entry, returning bytes freed (0 for directories
+    and for any symlink/junction, since removing a link never frees the
+    space used by its target)."""
     if _is_link(path):
         if path.is_dir():
-            os.rmdir(path)  # removes the reparse point itself, not its target's contents
+            # Directory symlink/junction. On Windows, RemoveDirectory (what
+            # os.rmdir maps to) removes just the reparse point without
+            # touching the target. On POSIX there's no such distinction -
+            # rmdir() on a symlink follows it and tries to remove the
+            # target itself (failing with ENOTEMPTY if it's not empty), so
+            # unlink() - which always removes the link entry itself - is
+            # what's needed there instead.
+            if os.name == "nt":
+                os.rmdir(path)
+            else:
+                os.unlink(path)
             return 0
-        size = path.stat().st_size
         os.unlink(path)
-        return size
+        return 0
     if path.is_dir():
         path.rmdir()  # must already be empty - callers only call this on emptied dirs
         return 0
