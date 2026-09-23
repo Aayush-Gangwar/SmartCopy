@@ -16,7 +16,7 @@ class IgnoreRules:
     case_insensitive: bool
 
     @classmethod
-    def load(cls, copyignore_path: Path) -> "IgnoreRules":
+    def load(cls, copyignore_path: Path, case_insensitive: Optional[bool] = None) -> "IgnoreRules":
         raw_rules: list[tuple[str, bool]] = []
         # utf-8-sig strips a leading BOM if present (common when the file is
         # saved by Windows editors/PowerShell) and behaves like utf-8 otherwise.
@@ -35,10 +35,14 @@ class IgnoreRules:
                 continue
             raw_rules.append((line, negate))
 
-        case_insensitive = os.name == "nt"
-        if case_insensitive:
+        # Explicit override lets callers (and tests) exercise both branches
+        # without monkeypatching the global os.name - patching that leaks
+        # into pathlib and pytest's own internals process-wide, since
+        # `import os` everywhere binds the same module object.
+        ci = (os.name == "nt") if case_insensitive is None else case_insensitive
+        if ci:
             raw_rules = [(pattern.casefold(), negate) for pattern, negate in raw_rules]
-        return cls(rules=raw_rules, case_insensitive=case_insensitive)
+        return cls(rules=raw_rules, case_insensitive=ci)
 
     @classmethod
     def from_patterns(cls, patterns: Iterable[str], case_insensitive: Optional[bool] = None) -> "IgnoreRules":

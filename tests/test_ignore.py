@@ -66,23 +66,24 @@ def test_last_matching_rule_wins(tmp_path: Path) -> None:
     assert rules.matches("keep.txt")
 
 
-def test_case_insensitive_on_windows(tmp_path: Path, monkeypatch) -> None:
+def test_case_insensitive_on_windows(tmp_path: Path) -> None:
     copyignore = tmp_path / ".copyignore"
     copyignore.write_text("Node_Modules\n", encoding="utf-8")
-    monkeypatch.setattr("smartcopy.ignore.os.name", "nt")
 
-    rules = IgnoreRules.load(copyignore)
+    # Explicit override rather than monkeypatching os.name - patching that
+    # globally leaks into pathlib and pytest's own internals process-wide,
+    # since `import os` everywhere binds the same module object.
+    rules = IgnoreRules.load(copyignore, case_insensitive=True)
 
     assert rules.matches("node_modules")
     assert rules.matches("NODE_MODULES")
 
 
-def test_case_sensitive_off_windows(tmp_path: Path, monkeypatch) -> None:
+def test_case_sensitive_off_windows(tmp_path: Path) -> None:
     copyignore = tmp_path / ".copyignore"
     copyignore.write_text("node_modules\n", encoding="utf-8")
-    monkeypatch.setattr("smartcopy.ignore.os.name", "posix")
 
-    rules = IgnoreRules.load(copyignore)
+    rules = IgnoreRules.load(copyignore, case_insensitive=False)
 
     assert rules.matches("node_modules")
     assert not rules.matches("NODE_MODULES")
