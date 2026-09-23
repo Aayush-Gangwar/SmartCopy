@@ -117,9 +117,14 @@ dist/
 
 # Wildcards work like .gitignore
 .env.*.local
+
+# A pattern with "/" is anchored to that exact path, not matched by name
+# anywhere - only the extension/ project's own node_modules is skipped
+extension/node_modules/
 ```
 
 - **Full gitignore-style matching**: wildcards (`*`, `?`, `[...]`), `!negation` with last-rule-wins semantics, comments, trailing slashes on directories — all supported.
+- **Anchored vs. name-only patterns, like real `.gitignore`**: a pattern with no `/` (e.g. `node_modules`) matches that name at any depth in the tree. A pattern containing a `/` (e.g. `extension/node_modules`) is anchored — it only matches that exact relative path, not a same-named folder elsewhere.
 - **No `.copyignore` yet?** SmartCopy automatically falls back to your existing `.gitignore`, so most projects work with zero setup.
 - **Case rules match the OS**: case-insensitive on Windows, case-sensitive on macOS/Linux — not just "however the pattern happened to be typed."
 - **Symlinks and Windows junctions are never followed** — they're detected and skipped outright, so a `pnpm`-style symlinked `node_modules` can't cause an infinite loop or silent duplication.

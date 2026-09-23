@@ -58,6 +58,23 @@ def test_ignored_file_name_is_skipped(tmp_path: Path) -> None:
     assert "drop.log" in skipped_files
 
 
+def test_anchored_pattern_only_excludes_the_named_nested_path(tmp_path: Path) -> None:
+    (tmp_path / "extension" / "node_modules").mkdir(parents=True)
+    (tmp_path / "extension" / "node_modules" / "pkg.js").write_text("x")
+    (tmp_path / "packages" / "a" / "node_modules").mkdir(parents=True)
+    (tmp_path / "packages" / "a" / "node_modules" / "dep.js").write_text("y")
+
+    result = scan(tmp_path, _make_rules("extension/node_modules"))
+
+    skipped = {p.as_posix() for p in result.skipped_dirs}
+    included = {p.as_posix() for p in result.included_files}
+
+    assert "extension/node_modules" in skipped
+    # Same directory name elsewhere is untouched - the pattern is anchored,
+    # not a bare-name match.
+    assert "packages/a/node_modules/dep.js" in included
+
+
 def test_top_level_categorizes_immediate_children(tmp_path: Path) -> None:
     (tmp_path / "src").mkdir()
     (tmp_path / "node_modules").mkdir()

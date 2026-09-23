@@ -77,7 +77,7 @@ def _walk(root: Path, current: Path, rules: IgnoreRules, result: ScanResult) -> 
             continue
 
         if entry.is_dir(follow_symlinks=False):
-            if rules.matches(entry.name):
+            if rules.matches(entry.name, rel.as_posix()):
                 result.skipped_dirs.append(rel)
                 result.skipped_size += _dir_size(Path(entry.path))
                 continue
@@ -87,7 +87,7 @@ def _walk(root: Path, current: Path, rules: IgnoreRules, result: ScanResult) -> 
                 size = entry.stat(follow_symlinks=False).st_size
             except OSError:
                 size = 0
-            if rules.matches(entry.name):
+            if rules.matches(entry.name, rel.as_posix()):
                 result.skipped_files.append(rel)
                 result.skipped_size += size
                 continue

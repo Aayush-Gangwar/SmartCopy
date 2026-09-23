@@ -17,7 +17,9 @@ venv/
 env/
 
 # VS Code extension - build output and dependencies (regenerate via
-# `npm run compile` / `python build.py`, never hand-edited)
+# `npm run compile` / `python build.py`, never hand-edited). These are
+# path-anchored (they contain "/"), so they only match inside extension/,
+# not any other node_modules/out/dist/bin/ elsewhere in the tree.
 extension/node_modules/
 extension/out/
 extension/dist/

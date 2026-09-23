@@ -48,12 +48,21 @@ class IgnoreRules:
         normalized = [p.casefold() if ci else p for p in patterns]
         return cls(rules=[(p, False) for p in normalized], case_insensitive=ci)
 
-    def matches(self, name: str) -> bool:
-        candidate = name.casefold() if self.case_insensitive else name
-        # fnmatchcase (not fnmatch) so casing is controlled entirely by the
-        # casefold above, independent of the host OS's own case rules.
+    def matches(self, name: str, rel_posix: Optional[str] = None) -> bool:
+        """rel_posix is the entry's path relative to the scan root
+        (posix-style). A pattern containing "/" is anchored - matched
+        against that full relative path, the same way a slash in a real
+        .gitignore line anchors it to a specific location instead of
+        matching the name anywhere in the tree. A pattern with no "/"
+        matches the bare name at any depth. Defaults rel_posix to name
+        for callers (and tests) that only care about basename matching."""
+        if rel_posix is None:
+            rel_posix = name
+        name_candidate = name.casefold() if self.case_insensitive else name
+        path_candidate = rel_posix.casefold() if self.case_insensitive else rel_posix
         result = False
         for pattern, negate in self.rules:
+            candidate = path_candidate if "/" in pattern else name_candidate
             if fnmatch.fnmatchcase(candidate, pattern):
                 result = not negate
         return result

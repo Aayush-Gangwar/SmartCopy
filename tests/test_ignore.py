@@ -86,3 +86,26 @@ def test_case_sensitive_off_windows(tmp_path: Path, monkeypatch) -> None:
 
     assert rules.matches("node_modules")
     assert not rules.matches("NODE_MODULES")
+
+
+def test_slash_patterns_are_anchored_to_the_given_path(tmp_path: Path) -> None:
+    copyignore = tmp_path / ".copyignore"
+    copyignore.write_text("extension/node_modules/\n", encoding="utf-8")
+
+    rules = IgnoreRules.load(copyignore)
+
+    # Anchored: matches only at that exact relative path...
+    assert rules.matches("node_modules", "extension/node_modules")
+    # ...not a same-named directory elsewhere in the tree.
+    assert not rules.matches("node_modules", "packages/a/node_modules")
+    assert not rules.matches("node_modules", "node_modules")
+
+
+def test_slashless_pattern_still_matches_by_name_anywhere(tmp_path: Path) -> None:
+    copyignore = tmp_path / ".copyignore"
+    copyignore.write_text("node_modules\n", encoding="utf-8")
+
+    rules = IgnoreRules.load(copyignore)
+
+    assert rules.matches("node_modules", "node_modules")
+    assert rules.matches("node_modules", "packages/a/node_modules")
