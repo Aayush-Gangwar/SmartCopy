@@ -3,9 +3,10 @@ from __future__ import annotations
 import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
 from .errors import FailedItem
-from .progress import progress_ticker
+from .progress import ProgressCallback, progress_ticker
 from .scanner import ScanResult
 
 
@@ -38,14 +39,18 @@ def _is_unchanged(src_path: Path, dest_path: Path) -> bool:
 
 
 def execute(
-    scan_result: ScanResult, dest: Path, show_progress: bool = True, incremental: bool = False
+    scan_result: ScanResult,
+    dest: Path,
+    show_progress: bool = True,
+    incremental: bool = False,
+    on_progress: Optional[ProgressCallback] = None,
 ) -> CopyStats:
     dest.mkdir(parents=True, exist_ok=True)
     bytes_copied = 0
     files_copied = 0
     files_unchanged = 0
     failed: list[FailedItem] = []
-    with progress_ticker(len(scan_result.included_files), show_progress, "Copying") as tick:
+    with progress_ticker(len(scan_result.included_files), show_progress, "Copying", on_progress) as tick:
         for rel in scan_result.included_files:
             src_path = scan_result.root / rel
             dest_path = dest / rel

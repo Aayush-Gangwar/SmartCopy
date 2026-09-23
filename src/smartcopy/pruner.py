@@ -3,9 +3,10 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
 from .errors import FailedItem
-from .progress import progress_ticker
+from .progress import ProgressCallback, progress_ticker
 from .scanner import ScanResult
 
 
@@ -54,7 +55,12 @@ def find_prune_files(scan_result: ScanResult, dest: Path) -> list[Path]:
     return targets
 
 
-def prune(scan_result: ScanResult, dest: Path, show_progress: bool = True) -> PruneStats:
+def prune(
+    scan_result: ScanResult,
+    dest: Path,
+    show_progress: bool = True,
+    on_progress: Optional[ProgressCallback] = None,
+) -> PruneStats:
     """True-mirror prune: after this, dest contains nothing that isn't in
     scan_result.included_files - same idea as robocopy /MIR or rsync
     --delete. This deletes real files; callers must confirm with the user
@@ -64,7 +70,7 @@ def prune(scan_result: ScanResult, dest: Path, show_progress: bool = True) -> Pr
         return stats
 
     targets = find_prune_files(scan_result, dest)
-    with progress_ticker(len(targets), show_progress, "Pruning") as tick:
+    with progress_ticker(len(targets), show_progress, "Pruning", on_progress) as tick:
         for rel in targets:
             try:
                 stats.bytes_removed += _remove_path(dest / rel)

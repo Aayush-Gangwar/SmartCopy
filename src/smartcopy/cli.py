@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import pyperclip
 import typer
@@ -51,6 +51,13 @@ def _error(json_mode: bool, message: str) -> None:
 def _emit_result(json_mode: bool, payload: dict) -> None:
     if json_mode:
         print(json.dumps({"event": "result", "data": payload}), flush=True)
+
+
+def _json_progress(label: str) -> Callable[[int, int], None]:
+    def _report(completed: int, total: int) -> None:
+        print(json.dumps({"event": "progress", "label": label, "completed": completed, "total": total}), flush=True)
+
+    return _report
 
 
 def _resolve_src_dest(paths: list[Path], json_mode: bool = False) -> tuple[Path, Path]:
@@ -174,7 +181,13 @@ def copy(
             abort=True,
         )
 
-    copy_stats = execute(result, dest_root, show_progress=not json_output, incremental=incremental)
+    copy_stats = execute(
+        result,
+        dest_root,
+        show_progress=not json_output,
+        incremental=incremental,
+        on_progress=_json_progress("Copying") if json_output else None,
+    )
     if not json_output:
         render_copy_summary(copy_stats)
     had_failures = bool(copy_stats.failed)
@@ -193,7 +206,12 @@ def copy(
                     f"Delete these {len(prune_targets)} file(s) from {dest_root}? This cannot be undone.",
                     abort=True,
                 )
-            prune_stats = run_prune(result, dest_root, show_progress=not json_output)
+            prune_stats = run_prune(
+                result,
+                dest_root,
+                show_progress=not json_output,
+                on_progress=_json_progress("Pruning") if json_output else None,
+            )
             had_failures = had_failures or bool(prune_stats.failed)
             prune_payload = prune_stats_to_dict(prune_stats)
             if not json_output:
@@ -258,7 +276,12 @@ def verify(
     rules = _load_rules(root, ignore_file, json_output)
     result = scan(root, rules)
 
-    verify_result = run_verify(result, dest_root, show_progress=not json_output)
+    verify_result = run_verify(
+        result,
+        dest_root,
+        show_progress=not json_output,
+        on_progress=_json_progress("Verifying") if json_output else None,
+    )
 
     if json_output:
         _emit_result(json_output, verify_result_to_dict(verify_result))
@@ -287,7 +310,12 @@ def zip_cmd(
     result = scan(root, rules)
 
     out = (output or root.parent / f"{root.name}-clean.zip").resolve()
-    zip_stats = create_zip(result, out, show_progress=not json_output)
+    zip_stats = create_zip(
+        result,
+        out,
+        show_progress=not json_output,
+        on_progress=_json_progress("Zipping") if json_output else None,
+    )
 
     if json_output:
         _emit_result(json_output, zip_stats_to_dict(zip_stats, out))

@@ -4,9 +4,10 @@ import difflib
 import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Optional
 
 from .errors import FailedItem
-from .progress import progress_ticker
+from .progress import ProgressCallback, progress_ticker
 from .scanner import ScanResult
 
 _CHUNK_SIZE = 1024 * 1024
@@ -64,9 +65,14 @@ class VerifyResult:
         return not (self.missing or self.size_mismatch or self.hash_mismatch or self.failed)
 
 
-def verify(scan_result: ScanResult, dest: Path, show_progress: bool = True) -> VerifyResult:
+def verify(
+    scan_result: ScanResult,
+    dest: Path,
+    show_progress: bool = True,
+    on_progress: Optional[ProgressCallback] = None,
+) -> VerifyResult:
     result = VerifyResult()
-    with progress_ticker(len(scan_result.included_files), show_progress, "Verifying") as tick:
+    with progress_ticker(len(scan_result.included_files), show_progress, "Verifying", on_progress) as tick:
         for rel in scan_result.included_files:
             result.checked += 1
             src_path = scan_result.root / rel
