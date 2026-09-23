@@ -18,6 +18,12 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
 
   private view: vscode.WebviewView | undefined;
   private state: DashboardState = { source: null, dest: null, ignoreFile: null, ignoreStatus: "unknown" };
+  // VS Code drops any postMessage sent while the view isn't visible, even
+  // with retainContextWhenHidden - so an operation that finishes entirely
+  // while you're on another tab would otherwise vanish. Track the latest
+  // operation-related message and replay it once the view is visible
+  // again, so you always catch up to the real end state.
+  private lastOperationMessage: Record<string, unknown> | undefined;
 
   constructor(private readonly context: vscode.ExtensionContext) {
     const folder = vscode.workspace.workspaceFolders?.[0];
@@ -36,6 +42,12 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this.renderHtml(webviewView.webview);
 
     webviewView.webview.onDidReceiveMessage((message) => this.handleMessage(message));
+
+    webviewView.onDidChangeVisibility(() => {
+      if (webviewView.visible && this.lastOperationMessage) {
+        this.view?.webview.postMessage(this.lastOperationMessage);
+      }
+    });
 
     this.postState();
   }
@@ -74,6 +86,15 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
     this.view?.webview.postMessage({ type: "state", ...this.state });
   }
 
+  private static readonly OPERATION_MESSAGE_TYPES = new Set(["running", "progress", "result", "error"]);
+
+  private post(message: Record<string, unknown>): void {
+    if (DashboardProvider.OPERATION_MESSAGE_TYPES.has(message.type as string)) {
+      this.lastOperationMessage = message;
+    }
+    this.view?.webview.postMessage(message);
+  }
+
   private async handleMessage(message: any): Promise<void> {
     switch (message.type) {
       case "ready":
@@ -109,7 +130,7 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
         return;
       case "copyToClipboard":
         await vscode.env.clipboard.writeText(message.text);
-        this.view?.webview.postMessage({ type: "toast", message: "Copied to clipboard" });
+        this.post({ type: "toast", message: "Copied to clipboard" });
         return;
     }
   }
@@ -159,7 +180,7 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
 
   private requireSource(action: string): string | null {
     if (!this.state.source) {
-      this.view?.webview.postMessage({ type: "error", action, message: "Choose a source folder first." });
+      this.post({ type: "error", action, message: "Choose a source folder first." });
       return null;
     }
     return this.state.source;
@@ -167,7 +188,7 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
 
   private requireDest(action: string): string | null {
     if (!this.state.dest) {
-      this.view?.webview.postMessage({ type: "error", action, message: "Choose a destination folder first." });
+      this.post({ type: "error", action, message: "Choose a destination folder first." });
       return null;
     }
     return this.state.dest;
@@ -181,7 +202,7 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
   }
 
   private onProgressFor(action: string): (update: ProgressUpdate) => void {
-    return (update) => this.view?.webview.postMessage({ type: "progress", action, ...update });
+    return (update) => this.post({ type: "progress", action, ...update });
   }
 
   private async runAction(action: string, options: Record<string, unknown>): Promise<void> {
@@ -190,7 +211,7 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    this.view?.webview.postMessage({ type: "running", action });
+    this.post({ type: "running", action });
 
     try {
       switch (action) {
@@ -200,12 +221,12 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
             args.push("--compare-dest", this.state.dest);
           }
           const data = await runCommand(this.context, args);
-          this.view?.webview.postMessage({ type: "result", action, data: data.data });
+          this.post({ type: "result", action, data: data.data });
           return;
         }
         case "stats": {
           const data = await runCommand(this.context, ["stats", source]);
-          this.view?.webview.postMessage({ type: "result", action, data: data.data });
+          this.post({ type: "result", action, data: data.data });
           return;
         }
         case "init": {
@@ -218,7 +239,7 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
           }
           const data = await runCommand(this.context, args);
           this.postState();
-          this.view?.webview.postMessage({ type: "result", action, data: data.data });
+          this.post({ type: "result", action, data: data.data });
           return;
         }
         case "command": {
@@ -228,7 +249,7 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
           }
           const args = this.withIgnoreFile(["command", source, dest]);
           const data = await runCommand(this.context, args);
-          this.view?.webview.postMessage({ type: "result", action, data: data.data });
+          this.post({ type: "result", action, data: data.data });
           return;
         }
         case "verify": {
@@ -238,7 +259,7 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
           }
           const args = this.withIgnoreFile(["verify", source, dest]);
           const data = await runCommand(this.context, args, this.onProgressFor(action));
-          this.view?.webview.postMessage({ type: "result", action, data: data.data });
+          this.post({ type: "result", action, data: data.data });
           return;
         }
         case "zip": {
@@ -247,7 +268,7 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
             args.push("--output", String(options.output));
           }
           const data = await runCommand(this.context, args, this.onProgressFor(action));
-          this.view?.webview.postMessage({ type: "result", action, data: data.data });
+          this.post({ type: "result", action, data: data.data });
           return;
         }
         case "copy": {
@@ -263,18 +284,14 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
             args.push("--prune", "--yes-prune");
           }
           const data = await runCommand(this.context, args, this.onProgressFor(action));
-          this.view?.webview.postMessage({ type: "result", action, data: data.data });
+          this.post({ type: "result", action, data: data.data });
           return;
         }
         default:
-          this.view?.webview.postMessage({ type: "error", action, message: `Unknown action: ${action}` });
+          this.post({ type: "error", action, message: `Unknown action: ${action}` });
       }
     } catch (err) {
-      this.view?.webview.postMessage({
-        type: "error",
-        action,
-        message: err instanceof Error ? err.message : String(err),
-      });
+      this.post({ type: "error", action, message: err instanceof Error ? err.message : String(err) });
     }
   }
 
