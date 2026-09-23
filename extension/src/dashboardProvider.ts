@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 import { runCommand } from "./binary";
+import { openDiff } from "./diff";
 
 type IgnoreStatus = "copyignore" | "gitignore" | "none" | "unknown";
 
@@ -36,6 +37,12 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.onDidReceiveMessage((message) => this.handleMessage(message));
 
+    this.postState();
+  }
+
+  public setActiveFolder(folderPath: string): void {
+    this.state.source = folderPath;
+    this.refreshIgnoreStatus();
     this.postState();
   }
 
@@ -75,6 +82,17 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
         return;
       case "run":
         await this.runAction(message.action, message.options ?? {});
+        return;
+      case "openDiff":
+        if (this.state.source && this.state.dest) {
+          await openDiff(this.state.source, this.state.dest, message.relativePath);
+        }
+        return;
+      case "revealInOS":
+        await vscode.commands.executeCommand("revealFileInOS", vscode.Uri.file(message.targetPath));
+        return;
+      case "copyToClipboard":
+        await vscode.env.clipboard.writeText(message.text);
         return;
     }
   }

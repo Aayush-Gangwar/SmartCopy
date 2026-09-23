@@ -108,6 +108,13 @@ button:hover {
   max-height: 200px;
   overflow-y: auto;
 }
+li.clickable {
+  cursor: pointer;
+  text-decoration: underline;
+}
+li.clickable:hover {
+  opacity: 0.8;
+}
 
 .code {
   background: var(--vscode-textCodeBlock-background);

@@ -96,24 +96,52 @@
   }
 
   function renderVerify(data) {
-    return h("div", { class: "result" }, [
+    const container = h("div", { class: "result" }, [
       h("div", { class: "summary" }, [
         data.ok ? `Verified ${data.checked} files - all match.` : `${data.checked} files checked, problems found.`,
       ]),
       renderFileList("Missing", data.missing),
-      renderFileList("Size mismatch", data.size_mismatch),
-      renderFileList("Hash mismatch", data.hash_mismatch),
     ]);
+    const diffable = [...data.size_mismatch, ...data.hash_mismatch];
+    if (diffable.length) {
+      container.appendChild(
+        h("div", { class: "file-list" }, [
+          h("div", { class: "file-list-title" }, [`Content differs (${diffable.length})`]),
+          h(
+            "ul",
+            {},
+            diffable.map((relPath) =>
+              h(
+                "li",
+                { class: "clickable", onclick: () => vscode.postMessage({ type: "openDiff", relativePath: relPath }) },
+                [`${relPath} (click to diff)`]
+              )
+            )
+          ),
+        ])
+      );
+    }
+    return container;
   }
 
   function renderZip(data) {
     return h("div", { class: "result" }, [
       h("div", { class: "summary" }, [`Wrote ${data.files_written} files to ${data.output}`]),
+      h(
+        "button",
+        { onclick: () => vscode.postMessage({ type: "revealInOS", targetPath: data.output }) },
+        ["Reveal in Explorer"]
+      ),
     ]);
   }
 
   function renderCommand(data) {
-    return h("div", { class: "result" }, [h("pre", { class: "code" }, [data.command])]);
+    return h("div", { class: "result" }, [
+      h("pre", { class: "code" }, [data.command]),
+      h("button", { onclick: () => vscode.postMessage({ type: "copyToClipboard", text: data.command }) }, [
+        "Copy to Clipboard",
+      ]),
+    ]);
   }
 
   function renderInit(data) {
