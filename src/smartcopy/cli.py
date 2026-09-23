@@ -14,11 +14,23 @@ app = typer.Typer(help="CTRL+A for developers - copy source, skip dependencies."
 
 
 def _load_rules(root: Path, ignore_file: Optional[Path]) -> IgnoreRules:
-    path = ignore_file or (root / ".copyignore")
-    if not path.is_file():
-        console.print(f"[red]No .copyignore found at {path}. Use --ignore-file to point at one.[/red]")
-        raise typer.Exit(code=1)
-    return IgnoreRules.load(path)
+    if ignore_file:
+        if not ignore_file.is_file():
+            console.print(f"[red]No ignore file found at {ignore_file}.[/red]")
+            raise typer.Exit(code=1)
+        return IgnoreRules.load(ignore_file)
+
+    copyignore = root / ".copyignore"
+    if copyignore.is_file():
+        return IgnoreRules.load(copyignore)
+
+    gitignore = root / ".gitignore"
+    if gitignore.is_file():
+        console.print(f"[yellow]No .copyignore found - using {gitignore} instead.[/yellow]")
+        return IgnoreRules.load(gitignore)
+
+    console.print(f"[red]No .copyignore or .gitignore found in {root}. Use --ignore-file instead.[/red]")
+    raise typer.Exit(code=1)
 
 
 @app.command()
