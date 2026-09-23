@@ -4,38 +4,56 @@ import fnmatch
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable, Optional
 
 
 @dataclass
 class IgnoreRules:
-    rules: list[str]
+    # (pattern, negate) in file order - gitignore semantics: the last rule
+    # that matches a given name wins, so a later "!pattern" can re-include
+    # something an earlier rule excluded.
+    rules: list[tuple[str, bool]]
     case_insensitive: bool
 
     @classmethod
     def load(cls, copyignore_path: Path) -> "IgnoreRules":
-        raw_rules: list[str] = []
+        raw_rules: list[tuple[str, bool]] = []
         # utf-8-sig strips a leading BOM if present (common when the file is
-        # saved by Windows editors/PowerShell) and behaves like utf-8
-        # otherwise.
+        # saved by Windows editors/PowerShell) and behaves like utf-8 otherwise.
         for raw_line in copyignore_path.read_text(encoding="utf-8-sig").splitlines():
             line = raw_line.strip()
             if not line or line.startswith("#"):
                 continue
+            negate = line.startswith("!")
+            if negate:
+                line = line[1:].strip()
             # gitignore-style trailing slash ("node_modules/") marks a
             # directory-only rule; we match by bare name regardless of
             # file/dir, so the slash itself carries no extra information.
             line = line.rstrip("/\\")
             if not line:
                 continue
-            raw_rules.append(line)
+            raw_rules.append((line, negate))
 
         case_insensitive = os.name == "nt"
         if case_insensitive:
-            raw_rules = [p.casefold() for p in raw_rules]
+            raw_rules = [(pattern.casefold(), negate) for pattern, negate in raw_rules]
         return cls(rules=raw_rules, case_insensitive=case_insensitive)
+
+    @classmethod
+    def from_patterns(cls, patterns: Iterable[str], case_insensitive: Optional[bool] = None) -> "IgnoreRules":
+        """Build rules from a plain pattern list - no file, no negation.
+        Used for built-in default/preset pattern sets."""
+        ci = (os.name == "nt") if case_insensitive is None else case_insensitive
+        normalized = [p.casefold() if ci else p for p in patterns]
+        return cls(rules=[(p, False) for p in normalized], case_insensitive=ci)
 
     def matches(self, name: str) -> bool:
         candidate = name.casefold() if self.case_insensitive else name
         # fnmatchcase (not fnmatch) so casing is controlled entirely by the
         # casefold above, independent of the host OS's own case rules.
-        return any(fnmatch.fnmatchcase(candidate, pattern) for pattern in self.rules)
+        result = False
+        for pattern, negate in self.rules:
+            if fnmatch.fnmatchcase(candidate, pattern):
+                result = not negate
+        return result
