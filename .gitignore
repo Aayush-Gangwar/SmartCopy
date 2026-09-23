@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+*.whl
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+myenv/
+.venv/
+venv/
+env/
+
+# VS Code extension - build output and dependencies (regenerate via
+# `npm run compile` / `python build.py`, never hand-edited)
+extension/node_modules/
+extension/out/
+extension/dist/
+extension/.vscode-test/
+extension/bin/
+extension/*.vsix
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.swp
