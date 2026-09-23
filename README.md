@@ -150,3 +150,19 @@ A VS Code extension already exists — see [`extension/README.md`](extension/REA
 | Copy and Prune | Verify Diff |
 |---|---|
 | ![SmartCopy Copy](extension/images/copy.png) | ![Verify diff](extension/images/verify_diff.gif) |
+
+## Contributing
+
+```bash
+git clone https://github.com/Aayush-Gangwar/SmartCopy.git
+cd SmartCopy
+pip install -e . pytest
+pytest tests -q
+```
+
+- Keep the CLI's `--json` output (see `src/smartcopy/jsonio.py`) a stable
+  contract — the VS Code extension parses it directly.
+- Add a test alongside any behavior change; `pytest tests -q` should stay
+  green (76 tests as of this writing).
+- Open an issue or PR against `main`; small, focused changes are easiest
+  to review.
