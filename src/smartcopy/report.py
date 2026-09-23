@@ -78,6 +78,12 @@ def render_verify(result: VerifyResult) -> None:
         console.print(f"[bold red]{problems} of {result.checked} files failed verification.[/bold red]")
 
 
+def render_file_diff(rel: Path, diff: str) -> None:
+    console.print(f"[bold]--- diff: {rel.as_posix()} ---[/bold]")
+    console.print(diff, end="")
+    console.print()
+
+
 def render_zip_summary(stats: ZipStats, output: Path) -> None:
     console.print(f"[green]Wrote {stats.files_written} files to {output}[/green]")
 
