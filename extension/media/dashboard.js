@@ -155,7 +155,22 @@
         ]),
         h("div", { class: "col" }, [
           h("h4", {}, ["Will Skip"]),
-          h("ul", {}, (data.top_skip || []).map((f) => h("li", {}, [f]))),
+          // Full recursive list (not just top-level, unlike "Will Copy") -
+          // matches the CLI's own render_preview, which shows every
+          // skipped path since that's the detail that actually builds
+          // trust in what's being excluded.
+          h(
+            "ul",
+            {},
+            [...(data.skipped_dirs || []), ...(data.skipped_files || [])]
+              .sort()
+              .map((f) => h("li", {}, [f]))
+              .concat(
+                [...(data.skipped_symlinks || [])]
+                  .sort()
+                  .map((f) => h("li", {}, [`${f} (symlink, not followed)`]))
+              )
+          ),
         ]),
       ]),
     ]);
