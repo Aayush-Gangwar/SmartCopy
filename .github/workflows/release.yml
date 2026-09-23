@@ -1,0 +1,129 @@
+name: Release
+
+# Triggers on a version tag push (e.g. `git tag v0.1.0 && git push --tags`).
+# Builds standalone CLI binaries for every supported platform, bundles them
+# into the VS Code extension, and attaches everything to a GitHub Release.
+# Does NOT publish to PyPI or the VS Code Marketplace - that stays a
+# deliberate manual step until we're ready for it.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-cli:
+    name: Build CLI binary (${{ matrix.platform_dir }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform_dir: win32-x64
+            binary_name: smartcopy.exe
+          - os: ubuntu-latest
+            platform_dir: linux-x64
+            binary_name: smartcopy
+          - os: macos-13 # Intel
+            platform_dir: darwin-x64
+            binary_name: smartcopy
+          - os: macos-14 # Apple Silicon
+            platform_dir: darwin-arm64
+            binary_name: smartcopy
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install smartcopy + PyInstaller
+        run: pip install -e . pyinstaller
+
+      - name: Build standalone binary
+        run: python build.py
+
+      - name: Stage binary for upload
+        shell: bash
+        run: |
+          mkdir -p "artifact/${{ matrix.platform_dir }}"
+          cp "dist/${{ matrix.binary_name }}" "artifact/${{ matrix.platform_dir }}/${{ matrix.binary_name }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.platform_dir }}
+          path: artifact/${{ matrix.platform_dir }}/${{ matrix.binary_name }}
+
+  build-extension:
+    name: Package VS Code extension
+    needs: build-cli
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Download all platform binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cli-*
+          path: extension/bin
+          merge-multiple: false
+
+      - name: Arrange binaries into extension/bin/<platform>/
+        shell: bash
+        run: |
+          cd extension/bin
+          for d in cli-*; do
+            platform="${d#cli-}"
+            mkdir -p "$platform"
+            mv "$d"/* "$platform"/
+            rmdir "$d"
+          done
+          chmod +x linux-x64/smartcopy darwin-x64/smartcopy darwin-arm64/smartcopy
+
+      - name: Install dependencies
+        working-directory: extension
+        run: npm ci
+
+      - name: Compile TypeScript
+        working-directory: extension
+        run: npm run compile
+
+      - name: Package .vsix
+        working-directory: extension
+        run: npx @vscode/vsce package
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vsix
+          path: extension/*.vsix
+
+  release:
+    name: Create GitHub Release
+    needs: [build-cli, build-extension]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Zip each platform's CLI binary
+        shell: bash
+        run: |
+          cd artifacts
+          for d in cli-*; do
+            platform="${d#cli-}"
+            (cd "$d" && zip -r "../smartcopy-${platform}.zip" .)
+          done
+
+      - name: Publish release with all artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/smartcopy-*.zip
+            artifacts/vsix/*.vsix
+          generate_release_notes: true
