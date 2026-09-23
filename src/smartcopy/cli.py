@@ -7,6 +7,7 @@ import typer
 
 from .copier import execute
 from .ignore import IgnoreRules
+from .presets import PRESETS, detect_presets
 from .report import console, render_copy_summary, render_preview
 from .scanner import scan, top_level
 
@@ -29,7 +30,10 @@ def _load_rules(root: Path, ignore_file: Optional[Path]) -> IgnoreRules:
         console.print(f"[yellow]No .copyignore found - using {gitignore} instead.[/yellow]")
         return IgnoreRules.load(gitignore)
 
-    console.print(f"[red]No .copyignore or .gitignore found in {root}. Use --ignore-file instead.[/red]")
+    console.print(
+        f"[red]No .copyignore or .gitignore found in {root}. "
+        f"Use --ignore-file, or run 'smartcopy init' to create one.[/red]"
+    )
     raise typer.Exit(code=1)
 
 
@@ -77,6 +81,37 @@ def copy(
 
     stats = execute(result, dest_root)
     render_copy_summary(stats)
+
+
+@app.command()
+def init(
+    path: Path = typer.Argument(Path("."), help="Project root to create a .copyignore in."),
+    preset: Optional[str] = typer.Option(
+        None, "--preset", help=f"One of: {', '.join(PRESETS)}. Auto-detected from the project if omitted."
+    ),
+    force: bool = typer.Option(False, "--force", help="Overwrite an existing .copyignore."),
+) -> None:
+    root = path.resolve()
+    target = root / ".copyignore"
+    if target.exists() and not force:
+        console.print(f"[red]{target} already exists. Use --force to overwrite.[/red]")
+        raise typer.Exit(code=1)
+
+    if preset:
+        if preset not in PRESETS:
+            console.print(f"[red]Unknown preset '{preset}'. Choose from: {', '.join(PRESETS)}[/red]")
+            raise typer.Exit(code=1)
+        keys = [preset]
+    else:
+        keys = detect_presets(root)
+
+    patterns: list[str] = []
+    for key in keys:
+        patterns.extend(PRESETS[key])
+    patterns = list(dict.fromkeys(patterns))
+
+    target.write_text("\n".join(patterns) + "\n", encoding="utf-8")
+    console.print(f"[green]Created {target}[/green] using preset(s): {', '.join(keys)}")
 
 
 def main() -> None:
