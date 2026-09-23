@@ -10,8 +10,9 @@ from .commandgen import build_command
 from .copier import execute
 from .ignore import IgnoreRules
 from .presets import PRESETS, default_patterns, detect_presets
-from .report import console, render_copy_summary, render_preview, render_stats, render_zip_summary
+from .report import console, render_copy_summary, render_preview, render_stats, render_verify, render_zip_summary
 from .scanner import scan, top_level
+from .verifier import verify as run_verify
 from .zipper import create_zip
 
 app = typer.Typer(help="CTRL+A for developers - copy source, skip dependencies.")
@@ -114,6 +115,24 @@ def command_cmd(
             "[yellow]Warning: '!negation' rules in your ignore file can't be expressed in this "
             "command and were omitted. Use 'smartcopy copy' directly if you rely on them.[/yellow]"
         )
+
+
+@app.command()
+def verify(
+    paths: list[Path] = typer.Argument(
+        ..., help="[SRC] DEST - SRC defaults to the current directory when omitted."
+    ),
+    ignore_file: Optional[Path] = typer.Option(None, "--ignore-file", help="Path to a .copyignore file."),
+) -> None:
+    """Confirm a copy is intact by comparing size and sha256 hash for every file."""
+    src, dest = _resolve_src_dest(paths)
+    root = src.resolve()
+    rules = _load_rules(root, ignore_file)
+    result = scan(root, rules)
+    verify_result = run_verify(result, dest.resolve(), show_progress=True)
+    render_verify(verify_result)
+    if not verify_result.ok:
+        raise typer.Exit(code=1)
 
 
 @app.command(name="zip")

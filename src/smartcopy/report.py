@@ -4,6 +4,7 @@ from rich.console import Console
 
 from .copier import CopyStats
 from .scanner import ScanResult
+from .verifier import VerifyResult
 from .zipper import ZipStats
 
 console = Console()
@@ -49,6 +50,32 @@ def render_preview(
         f"[red]{len(skipped_paths)} skipped[/red] "
         f"([bold]{_human_size(result.skipped_size)}[/bold] saved, {saved_pct:.1f}%)"
     )
+
+
+def render_verify(result: VerifyResult) -> None:
+    if result.missing:
+        console.print("[bold red]Missing in destination[/bold red]")
+        for rel in sorted(result.missing, key=lambda p: p.as_posix()):
+            console.print(f"  [red]{rel.as_posix()}[/red]")
+        console.print()
+
+    if result.size_mismatch:
+        console.print("[bold red]Size mismatch[/bold red]")
+        for rel in sorted(result.size_mismatch, key=lambda p: p.as_posix()):
+            console.print(f"  [red]{rel.as_posix()}[/red]")
+        console.print()
+
+    if result.hash_mismatch:
+        console.print("[bold red]Content mismatch (hash)[/bold red]")
+        for rel in sorted(result.hash_mismatch, key=lambda p: p.as_posix()):
+            console.print(f"  [red]{rel.as_posix()}[/red]")
+        console.print()
+
+    if result.ok:
+        console.print(f"[green]Verified {result.checked} files - all match.[/green]")
+    else:
+        problems = len(result.missing) + len(result.size_mismatch) + len(result.hash_mismatch)
+        console.print(f"[bold red]{problems} of {result.checked} files failed verification.[/bold red]")
 
 
 def render_zip_summary(stats: ZipStats, output: Path) -> None:
