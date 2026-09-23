@@ -13,7 +13,10 @@ class IgnoreRules:
     @classmethod
     def load(cls, copyignore_path: Path) -> "IgnoreRules":
         raw_names: list[str] = []
-        for raw_line in copyignore_path.read_text(encoding="utf-8").splitlines():
+        # utf-8-sig strips a leading BOM if present (common when the file is
+        # saved by Windows editors/PowerShell) and behaves like utf-8
+        # otherwise.
+        for raw_line in copyignore_path.read_text(encoding="utf-8-sig").splitlines():
             line = raw_line.strip()
             if not line or line.startswith("#"):
                 continue
