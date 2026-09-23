@@ -24,6 +24,124 @@ button.active {
   font-weight: 600;
 }
 
+/* A quiet, static status strip: two monochrome folder silhouettes (same
+   visual language as the Activity Bar icon) joined by a line, with one
+   small arrow drifting between them - just enough motion to read as
+   "source -> destination" without competing for attention with the real
+   controls below. Lives in the static page shell (not rebuilt by
+   dashboard.js's render()), so the animation isn't restarted on every
+   re-render during a live operation. */
+.hero {
+  display: flex;
+  align-items: center;
+  height: 20px;
+  margin: 2px 0 14px 0;
+  opacity: 0.75;
+  color: var(--vscode-descriptionForeground, var(--vscode-foreground));
+}
+.hero-icon {
+  flex-shrink: 0;
+}
+.hero-track {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  margin: 0 10px;
+}
+.hero-track::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--vscode-widget-border, rgba(128, 128, 128, 0.35));
+}
+.hero-arrow {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  animation: hero-arrow-move 3.5s ease-in-out infinite;
+}
+@keyframes hero-arrow-move {
+  0% {
+    left: 0%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  85% {
+    opacity: 0.9;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-arrow {
+    animation: none;
+    left: 50%;
+    opacity: 0.6;
+  }
+}
+
+/* A quiet marker for where filtering happens, plus an occasional tiny file
+   icon that peels off the main line and fades there instead of reaching
+   the destination - the "excluded file" case, kept rare and small so it
+   reads as a detail, not competing with the main icon's motion. */
+.hero-branch {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1px;
+  height: 7px;
+  background: var(--vscode-widget-border, rgba(128, 128, 128, 0.35));
+}
+.hero-reject {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  opacity: 0;
+  animation: hero-reject-move 7s ease-in-out infinite;
+}
+@keyframes hero-reject-move {
+  0% {
+    left: 0%;
+    top: 50%;
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.85;
+  }
+  46% {
+    left: 46%;
+    top: 50%;
+    opacity: 0.85;
+  }
+  60% {
+    left: 50%;
+    top: 135%;
+    opacity: 0;
+  }
+  100% {
+    left: 50%;
+    top: 135%;
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-reject {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 .options-section {
   margin-bottom: 12px;
 }

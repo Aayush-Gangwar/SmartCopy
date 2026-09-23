@@ -293,6 +293,27 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
   <title>SmartCopy</title>
 </head>
 <body>
+  <div class="hero" aria-hidden="true">
+    <svg class="hero-icon" viewBox="0 0 24 24" width="16" height="16">
+      <path fill="currentColor" d="M2 5a2 2 0 0 1 2-2h4.5l1.5 1.5H20a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5z" />
+    </svg>
+    <div class="hero-track">
+      <div class="hero-branch"></div>
+      <span class="hero-arrow">
+        <svg viewBox="0 0 16 16" width="11" height="11" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <path fill-rule="evenodd" clip-rule="evenodd" stroke="#888888" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round" d="M13.71 4.29l-3-3L10 1H4L3 2v12l1 1h9l1-1V5l-.29-.71zM13 14H4V2h5v4h4v8zm-3-9V2l3 3h-3z"/>
+</svg>
+      </span>
+      <span class="hero-reject">
+        <svg viewBox="0 0 16 16" width="11" height="11" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <path fill-rule="evenodd" clip-rule="evenodd" stroke="#f14c4c" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round" d="M13.71 4.29l-3-3L10 1H4L3 2v12l1 1h9l1-1V5l-.29-.71zM13 14H4V2h5v4h4v8zm-3-9V2l3 3h-3z"/>
+</svg>
+      </span>
+    </div>
+    <svg class="hero-icon" viewBox="0 0 24 24" width="16" height="16">
+      <path fill="currentColor" d="M2 5a2 2 0 0 1 2-2h4.5l1.5 1.5H20a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5z" />
+    </svg>
+  </div>
   <div id="root"></div>
   <script nonce="${nonce}" src="${mediaUri("dashboard.js")}"></script>
 </body>
