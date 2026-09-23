@@ -10,11 +10,15 @@ from .commandgen import build_command
 from .copier import execute
 from .ignore import IgnoreRules
 from .presets import PRESETS, default_patterns, detect_presets
+from .pruner import find_prune_files
+from .pruner import prune as run_prune
 from .report import (
     console,
     render_copy_summary,
     render_file_diff,
     render_preview,
+    render_prune_preview,
+    render_prune_summary,
     render_stats,
     render_verify,
     render_zip_summary,
@@ -55,12 +59,23 @@ def preview(
     path: Path = typer.Argument(Path("."), help="Project root to scan."),
     ignore_file: Optional[Path] = typer.Option(None, "--ignore-file", help="Path to a .copyignore file."),
     verbose: bool = typer.Option(False, "--verbose", help="List every file that will be copied."),
+    compare_dest: Optional[Path] = typer.Option(
+        None,
+        "--compare-dest",
+        help="Also report which files there would be removed by 'copy --prune' - read-only, nothing is deleted.",
+    ),
 ) -> None:
     root = path.resolve()
     rules = _load_rules(root, ignore_file)
     result = scan(root, rules)
     top_copy, top_skip = top_level(root, rules)
     render_preview(result, top_copy, top_skip, verbose)
+    if compare_dest is not None:
+        would_prune = find_prune_files(result, compare_dest.resolve())
+        if would_prune:
+            render_prune_preview(would_prune)
+        else:
+            console.print("[green]Nothing would be pruned - destination already matches.[/green]")
 
 
 def _resolve_src_dest(paths: list[Path]) -> tuple[Path, Path]:
@@ -82,6 +97,11 @@ def copy(
     incremental: bool = typer.Option(
         False, "--incremental", help="Skip files unchanged since last copy (by size + mtime)."
     ),
+    prune: bool = typer.Option(
+        False,
+        "--prune",
+        help="After copying, remove anything in DEST not in the current source - true mirror, like robocopy /MIR.",
+    ),
 ) -> None:
     src, dest = _resolve_src_dest(paths)
     root = src.resolve()
@@ -97,6 +117,19 @@ def copy(
 
     stats = execute(result, dest_root, show_progress=True, incremental=incremental)
     render_copy_summary(stats)
+
+    if prune:
+        prune_targets = find_prune_files(result, dest_root)
+        if not prune_targets:
+            console.print("[green]Nothing to prune - destination already matches.[/green]")
+        else:
+            render_prune_preview(prune_targets)
+            typer.confirm(
+                f"Delete these {len(prune_targets)} file(s) from {dest_root}? This cannot be undone.",
+                abort=True,
+            )
+            prune_stats = run_prune(result, dest_root, show_progress=True)
+            render_prune_summary(prune_stats)
 
 
 @app.command(name="command")

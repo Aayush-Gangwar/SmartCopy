@@ -3,6 +3,7 @@ from __future__ import annotations
 from rich.console import Console
 
 from .copier import CopyStats
+from .pruner import PruneStats
 from .scanner import ScanResult
 from .verifier import VerifyResult
 from .zipper import ZipStats
@@ -82,6 +83,22 @@ def render_file_diff(rel: Path, diff: str) -> None:
     console.print(f"[bold]--- diff: {rel.as_posix()} ---[/bold]")
     console.print(diff, end="")
     console.print()
+
+
+def render_prune_preview(targets: list[Path]) -> None:
+    console.print(
+        f"[bold yellow]{len(targets)} file(s) in the destination are not in the "
+        f"current source and will be removed:[/bold yellow]"
+    )
+    for rel in sorted(targets, key=lambda p: p.as_posix()):
+        console.print(f"  [red]{rel.as_posix()}[/red]")
+
+
+def render_prune_summary(stats: PruneStats) -> None:
+    console.print(
+        f"[red]Removed {stats.files_removed} files, {stats.dirs_removed} directories[/red] "
+        f"([bold]{_human_size(stats.bytes_removed)}[/bold] freed)"
+    )
 
 
 def render_zip_summary(stats: ZipStats, output: Path) -> None:
