@@ -34,13 +34,24 @@ def preview(
     render_preview(result, top_copy, top_skip, verbose)
 
 
+def _resolve_src_dest(paths: list[Path]) -> tuple[Path, Path]:
+    if len(paths) == 1:
+        return Path("."), paths[0]
+    if len(paths) == 2:
+        return paths[0], paths[1]
+    console.print("[red]Usage: [SRC] DEST[/red]")
+    raise typer.Exit(code=1)
+
+
 @app.command()
 def copy(
-    src: Path = typer.Argument(..., help="Project root to copy from."),
-    dest: Path = typer.Argument(..., help="Destination directory."),
+    paths: list[Path] = typer.Argument(
+        ..., help="[SRC] DEST - SRC defaults to the current directory when omitted."
+    ),
     ignore_file: Optional[Path] = typer.Option(None, "--ignore-file", help="Path to a .copyignore file."),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt."),
 ) -> None:
+    src, dest = _resolve_src_dest(paths)
     root = src.resolve()
     dest_root = dest.resolve()
     rules = _load_rules(root, ignore_file)
