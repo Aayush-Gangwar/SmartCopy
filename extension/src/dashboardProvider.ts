@@ -52,6 +52,11 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
   }
 
   private refreshIgnoreStatus(): void {
+    if (this.state.ignoreFile) {
+      // Status display is governed by the explicit override in this case;
+      // the webview shows the chosen filename directly instead of a badge.
+      return;
+    }
     if (!this.state.source) {
       this.state.ignoreStatus = "unknown";
       return;
@@ -79,6 +84,17 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
         return;
       case "pickDest":
         await this.pickFolder("dest");
+        return;
+      case "pickIgnoreFile":
+        await this.pickIgnoreFile();
+        return;
+      case "clearIgnoreFile":
+        this.state.ignoreFile = null;
+        this.refreshIgnoreStatus();
+        this.postState();
+        return;
+      case "pickZipOutput":
+        await this.pickZipOutput();
         return;
       case "run":
         await this.runAction(message.action, message.options ?? {});
@@ -115,6 +131,32 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
     this.postState();
   }
 
+  private async pickIgnoreFile(): Promise<void> {
+    const picked = await vscode.window.showOpenDialog({
+      canSelectFolders: false,
+      canSelectFiles: true,
+      canSelectMany: false,
+      openLabel: "Use as Ignore File",
+      title: "Select a .copyignore, .gitignore, or any other ignore file",
+    });
+    if (!picked || picked.length === 0) {
+      return;
+    }
+    this.state.ignoreFile = picked[0].fsPath;
+    this.postState();
+  }
+
+  private async pickZipOutput(): Promise<void> {
+    const picked = await vscode.window.showSaveDialog({
+      filters: { "Zip files": ["zip"] },
+      saveLabel: "Use as Zip Output",
+    });
+    if (!picked) {
+      return;
+    }
+    this.view?.webview.postMessage({ type: "zipOutput", path: picked.fsPath });
+  }
+
   private requireSource(action: string): string | null {
     if (!this.state.source) {
       this.view?.webview.postMessage({ type: "error", action, message: "Choose a source folder first." });
@@ -129,6 +171,13 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
       return null;
     }
     return this.state.dest;
+  }
+
+  private withIgnoreFile(args: string[]): string[] {
+    if (this.state.ignoreFile) {
+      args.push("--ignore-file", this.state.ignoreFile);
+    }
+    return args;
   }
 
   private onProgressFor(action: string): (update: ProgressUpdate) => void {
@@ -146,7 +195,11 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
     try {
       switch (action) {
         case "preview": {
-          const data = await runCommand(this.context, ["preview", source]);
+          const args = this.withIgnoreFile(["preview", source]);
+          if (this.state.dest) {
+            args.push("--compare-dest", this.state.dest);
+          }
+          const data = await runCommand(this.context, args);
           this.view?.webview.postMessage({ type: "result", action, data: data.data });
           return;
         }
@@ -173,7 +226,8 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
           if (!dest) {
             return;
           }
-          const data = await runCommand(this.context, ["command", source, dest]);
+          const args = this.withIgnoreFile(["command", source, dest]);
+          const data = await runCommand(this.context, args);
           this.view?.webview.postMessage({ type: "result", action, data: data.data });
           return;
         }
@@ -182,12 +236,17 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
           if (!dest) {
             return;
           }
-          const data = await runCommand(this.context, ["verify", source, dest], this.onProgressFor(action));
+          const args = this.withIgnoreFile(["verify", source, dest]);
+          const data = await runCommand(this.context, args, this.onProgressFor(action));
           this.view?.webview.postMessage({ type: "result", action, data: data.data });
           return;
         }
         case "zip": {
-          const data = await runCommand(this.context, ["zip", source], this.onProgressFor(action));
+          const args = this.withIgnoreFile(["zip", source]);
+          if (options.output) {
+            args.push("--output", String(options.output));
+          }
+          const data = await runCommand(this.context, args, this.onProgressFor(action));
           this.view?.webview.postMessage({ type: "result", action, data: data.data });
           return;
         }
@@ -196,11 +255,14 @@ export class DashboardProvider implements vscode.WebviewViewProvider {
           if (!dest) {
             return;
           }
-          const data = await runCommand(
-            this.context,
-            ["copy", source, dest, "--yes"],
-            this.onProgressFor(action)
-          );
+          const args = this.withIgnoreFile(["copy", source, dest, "--yes"]);
+          if (options.incremental) {
+            args.push("--incremental");
+          }
+          if (options.prune) {
+            args.push("--prune", "--yes-prune");
+          }
+          const data = await runCommand(this.context, args, this.onProgressFor(action));
           this.view?.webview.postMessage({ type: "result", action, data: data.data });
           return;
         }

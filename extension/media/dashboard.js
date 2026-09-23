@@ -2,10 +2,15 @@
   const vscode = acquireVsCodeApi();
   const root = document.getElementById("root");
 
+  const PRESETS = ["general", "node", "python", "java", "dotnet", "rust"];
+
   let state = { source: null, dest: null, ignoreFile: null, ignoreStatus: "unknown" };
   let running = null;
   let runningProgress = null; // {label, completed, total}
   let lastResultNode = null;
+  let awaitingPruneConfirm = false;
+  let pendingCopyOptions = null;
+  let zipOutput = null;
 
   function h(tag, attrs, children) {
     const el = document.createElement(tag);
@@ -50,6 +55,34 @@
       h("span", { class: "row-label" }, [label]),
       h("span", { class: "row-value" }, [value]),
       h("button", { onclick: () => vscode.postMessage({ type: pickMsg }) }, ["Change..."]),
+    ]);
+  }
+
+  function optionsSection(label, contentNodes) {
+    return h("details", { class: "options-section" }, [h("summary", {}, [label]), ...contentNodes]);
+  }
+
+  function statusBadge() {
+    const map = {
+      copyignore: "Using .copyignore",
+      gitignore: "Falling back to .gitignore",
+      none: "No ignore file - use Init",
+      unknown: "-",
+    };
+    return h("span", { class: "badge" }, [map[state.ignoreStatus] || map.unknown]);
+  }
+
+  function ignoreFileRow() {
+    if (state.ignoreFile) {
+      return h("div", { class: "row" }, [
+        h("span", { class: "row-label" }, ["Ignore file"]),
+        h("span", { class: "row-value" }, [state.ignoreFile]),
+        h("button", { onclick: () => vscode.postMessage({ type: "clearIgnoreFile" }) }, ["Clear override"]),
+      ]);
+    }
+    return h("div", { class: "row" }, [
+      statusBadge(),
+      h("button", { onclick: () => vscode.postMessage({ type: "pickIgnoreFile" }) }, ["Override ignore file..."]),
     ]);
   }
 
@@ -201,11 +234,55 @@
     }
   }
 
+  function showPruneConfirmModal(targets, onConfirm) {
+    const overlay = h("div", { class: "modal-overlay" }, []);
+    const box = h("div", { class: "modal" }, [
+      h("h4", {}, ["Confirm removal"]),
+      targets.length
+        ? h("div", {}, [
+            h("p", {}, [
+              `${targets.length} file(s) in the destination are not in the current source and will be removed:`,
+            ]),
+            h(
+              "ul",
+              { class: "modal-list" },
+              targets.slice(0, 100).map((t) => h("li", {}, [t]))
+            ),
+          ])
+        : h("p", {}, ["Nothing to prune - destination already matches."]),
+      h("div", { class: "modal-actions" }, [
+        h("button", { onclick: () => overlay.remove() }, ["Cancel"]),
+        h(
+          "button",
+          {
+            onclick: () => {
+              overlay.remove();
+              onConfirm();
+            },
+          },
+          ["Delete and Copy"]
+        ),
+      ]),
+    ]);
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+  }
+
   function render() {
     root.innerHTML = "";
 
     root.appendChild(folderRow("Source", "source", "pickSource"));
     root.appendChild(folderRow("Destination", "dest", "pickDest"));
+    root.appendChild(ignoreFileRow());
+
+    const incrementalCheckbox = h("input", { type: "checkbox", id: "incremental" });
+    const pruneCheckbox = h("input", { type: "checkbox", id: "prune" });
+    const presetSelect = h(
+      "select",
+      {},
+      [h("option", { value: "" }, ["(auto-detect)"]), ...PRESETS.map((p) => h("option", { value: p }, [p]))]
+    );
+    const forceCheckbox = h("input", { type: "checkbox", id: "force" });
 
     root.appendChild(
       h("div", { class: "actions" }, [
@@ -213,9 +290,47 @@
         actionButton("Stats", "stats", () => run("stats")),
         actionButton("Command", "command", () => run("command")),
         actionButton("Verify", "verify", () => run("verify")),
-        actionButton("Zip", "zip", () => run("zip")),
-        actionButton("Init", "init", () => run("init")),
-        actionButton("Copy", "copy", () => run("copy")),
+      ])
+    );
+
+    root.appendChild(
+      optionsSection("Init options", [
+        h("div", { class: "copy-row" }, [
+          h("label", {}, ["Preset:", presetSelect]),
+          h("label", {}, [forceCheckbox, " Force overwrite"]),
+          actionButton("Init", "init", () =>
+            run("init", { preset: presetSelect.value || undefined, force: forceCheckbox.checked })
+          ),
+        ]),
+      ])
+    );
+
+    root.appendChild(
+      optionsSection("Zip options", [
+        h("div", { class: "copy-row" }, [
+          h("span", { class: "row-value" }, [zipOutput || "(default output path)"]),
+          h("button", { onclick: () => vscode.postMessage({ type: "pickZipOutput" }) }, ["Choose Output..."]),
+          actionButton("Zip", "zip", () => run("zip", { output: zipOutput || undefined })),
+        ]),
+      ])
+    );
+
+    root.appendChild(
+      optionsSection("Copy options", [
+        h("div", { class: "copy-row" }, [
+          h("label", {}, [incrementalCheckbox, " Incremental"]),
+          h("label", {}, [pruneCheckbox, " Remove stale files (mirror)"]),
+          actionButton("Copy", "copy", () => {
+            const options = { incremental: incrementalCheckbox.checked, prune: pruneCheckbox.checked };
+            if (options.prune && state.dest) {
+              pendingCopyOptions = options;
+              awaitingPruneConfirm = true;
+              run("preview");
+            } else {
+              run("copy", options);
+            }
+          }),
+        ]),
       ])
     );
 
@@ -252,6 +367,10 @@
         };
         render();
         return;
+      case "zipOutput":
+        zipOutput = message.path;
+        render();
+        return;
       case "toast":
         showToast(message.message);
         return;
@@ -267,6 +386,12 @@
       case "result":
         running = null;
         runningProgress = null;
+        if (message.action === "preview" && awaitingPruneConfirm) {
+          awaitingPruneConfirm = false;
+          render();
+          showPruneConfirmModal(message.data.would_prune || [], () => run("copy", pendingCopyOptions));
+          return;
+        }
         lastResultNode = renderResult(message.action, message.data);
         render();
         showToast(`${message.action} complete`);
@@ -274,6 +399,7 @@
       case "error":
         running = null;
         runningProgress = null;
+        awaitingPruneConfirm = false;
         lastResultNode = renderError(message.message);
         render();
         showToast(`${message.action} failed`);

@@ -19,6 +19,82 @@ button:hover {
   background: var(--vscode-button-hoverBackground);
 }
 
+.options-section {
+  margin-bottom: 12px;
+}
+.options-section summary {
+  cursor: pointer;
+  font-size: 12px;
+  padding: 4px 2px;
+  opacity: 0.85;
+  user-select: none;
+}
+.options-section summary:hover {
+  opacity: 1;
+}
+.options-section .copy-row {
+  margin-top: 6px;
+  margin-bottom: 0;
+}
+
+.badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+
+.copy-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 8px;
+  border: 1px solid var(--vscode-widget-border, transparent);
+  border-radius: 4px;
+}
+.copy-row label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.modal {
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--vscode-widget-border, #444);
+  border-radius: 4px;
+  padding: 16px;
+  max-width: 90%;
+  max-height: 80%;
+  overflow-y: auto;
+}
+.modal h4 {
+  margin-top: 0;
+}
+.modal-list {
+  max-height: 200px;
+  overflow-y: auto;
+  font-size: 12px;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .header {
   display: flex;
   align-items: center;
