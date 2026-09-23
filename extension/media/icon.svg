@@ -1,6 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-  <g opacity="0.6" style="mix-blend-mode: multiply;">
-    <path fill="currentColor" d="M4 4h9l3 3v13H4z" />
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Smart Action / Speed Lines (Fills the entire left column) -->
+  <line x1="2" y1="7" x2="6" y2="7" stroke-width="2" />
+  <line x1="2" y1="12" x2="8" y2="12" stroke-width="2" />
+  <line x1="2" y1="17" x2="6" y2="17" stroke-width="2" />
+
+  <!-- Double Overlapping Document Block (Fills the right column) -->
+  <g transform="translate(4, 0)">
+    <!-- Back Page -->
+    <path d="M9 3 H15 L18 6 V16 H9 Z" opacity="0.5" />
+    <!-- Front Page (Blocks out lines behind cleanly) -->
+    <path d="M5 7 H11 L14 10 V20 H5 Z" fill="var(--vscode-editor-background, #1e1e1e)" stroke="currentColor" stroke-width="1.8" />
+    <path d="M11 7 V10 H14" />
   </g>
-  <path fill="var(--vscode-icon-foreground)" d="M7 8h9l3 3v9H7z" opacity="0.85" />
 </svg>
