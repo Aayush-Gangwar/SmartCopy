@@ -5,6 +5,7 @@ import hashlib
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .errors import FailedItem
 from .progress import progress_ticker
 from .scanner import ScanResult
 
@@ -56,10 +57,11 @@ class VerifyResult:
     missing: list[Path] = field(default_factory=list)
     size_mismatch: list[Path] = field(default_factory=list)
     hash_mismatch: list[Path] = field(default_factory=list)
+    failed: list[FailedItem] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
-        return not (self.missing or self.size_mismatch or self.hash_mismatch)
+        return not (self.missing or self.size_mismatch or self.hash_mismatch or self.failed)
 
 
 def verify(scan_result: ScanResult, dest: Path, show_progress: bool = True) -> VerifyResult:
@@ -69,11 +71,21 @@ def verify(scan_result: ScanResult, dest: Path, show_progress: bool = True) -> V
             result.checked += 1
             src_path = scan_result.root / rel
             dest_path = dest / rel
-            if not dest_path.exists():
-                result.missing.append(rel)
-            elif src_path.stat().st_size != dest_path.stat().st_size:
-                result.size_mismatch.append(rel)
-            elif _hash_file(src_path) != _hash_file(dest_path):
-                result.hash_mismatch.append(rel)
-            tick()
+
+            try:
+                if not dest_path.exists():
+                    result.missing.append(rel)
+                    continue
+                if src_path.stat().st_size != dest_path.stat().st_size:
+                    result.size_mismatch.append(rel)
+                    continue
+                if _hash_file(src_path) != _hash_file(dest_path):
+                    result.hash_mismatch.append(rel)
+            except OSError as exc:
+                # e.g. a file became unreadable mid-verify - can't confirm it,
+                # so it counts as a failure rather than being silently skipped.
+                result.failed.append(FailedItem(path=rel, error=str(exc)))
+            finally:
+                tick()
+
     return result

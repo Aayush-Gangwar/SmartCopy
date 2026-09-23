@@ -117,6 +117,7 @@ def copy(
 
     stats = execute(result, dest_root, show_progress=True, incremental=incremental)
     render_copy_summary(stats)
+    had_failures = bool(stats.failed)
 
     if prune:
         prune_targets = find_prune_files(result, dest_root)
@@ -129,7 +130,11 @@ def copy(
                 abort=True,
             )
             prune_stats = run_prune(result, dest_root, show_progress=True)
+            had_failures = had_failures or bool(prune_stats.failed)
             render_prune_summary(prune_stats)
+
+    if had_failures:
+        raise typer.Exit(code=1)
 
 
 @app.command(name="command")
@@ -196,6 +201,8 @@ def zip_cmd(
     out = (output or root.parent / f"{root.name}-clean.zip").resolve()
     zip_stats = create_zip(result, out, show_progress=True)
     render_zip_summary(zip_stats, out)
+    if zip_stats.failed:
+        raise typer.Exit(code=1)
 
 
 @app.command()

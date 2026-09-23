@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
+from .errors import FailedItem
 from .progress import progress_ticker
 from .scanner import ScanResult
 
@@ -13,6 +14,7 @@ class PruneStats:
     files_removed: int = 0
     dirs_removed: int = 0
     bytes_removed: int = 0
+    failed: list[FailedItem] = field(default_factory=list)
 
 
 def _is_link(path: Path) -> bool:
@@ -64,20 +66,29 @@ def prune(scan_result: ScanResult, dest: Path, show_progress: bool = True) -> Pr
     targets = find_prune_files(scan_result, dest)
     with progress_ticker(len(targets), show_progress, "Pruning") as tick:
         for rel in targets:
-            stats.bytes_removed += _remove_path(dest / rel)
-            stats.files_removed += 1
+            try:
+                stats.bytes_removed += _remove_path(dest / rel)
+                stats.files_removed += 1
+            except OSError as exc:
+                # A locked/permission-denied file stays put rather than
+                # aborting the whole prune - reported, not silently skipped.
+                stats.failed.append(FailedItem(path=rel, error=str(exc)))
             tick()
 
     # Bottom-up: remove stray symlinked/junction directories outright (the
     # scanner never includes symlinks, so any found here are always stale),
-    # then remove directories left empty by everything removed above.
+    # then remove directories left empty by everything removed above. A
+    # parent is only checked once its children have already been handled.
     for dirpath, dirnames, _filenames in os.walk(dest, topdown=False, followlinks=False):
         current_dir = Path(dirpath)
         for name in list(dirnames):
             sub = current_dir / name
             if _is_link(sub):
-                _remove_path(sub)
-                stats.dirs_removed += 1
+                try:
+                    _remove_path(sub)
+                    stats.dirs_removed += 1
+                except OSError as exc:
+                    stats.failed.append(FailedItem(path=sub.relative_to(dest), error=str(exc)))
 
         if current_dir == dest:
             continue
@@ -86,6 +97,9 @@ def prune(scan_result: ScanResult, dest: Path, show_progress: bool = True) -> Pr
                 _remove_path(current_dir)
                 stats.dirs_removed += 1
         except OSError:
+            # Not empty (a file in it failed to delete above, so it must
+            # stay) or a transient access issue - a leftover empty-ish
+            # directory isn't data loss, so it's not worth escalating.
             pass
 
     return stats

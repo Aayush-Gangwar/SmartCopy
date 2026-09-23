@@ -3,12 +3,22 @@ from __future__ import annotations
 from rich.console import Console
 
 from .copier import CopyStats
+from .errors import FailedItem
 from .pruner import PruneStats
 from .scanner import ScanResult
 from .verifier import VerifyResult
 from .zipper import ZipStats
 
 console = Console()
+
+
+def _render_failed(failed: list[FailedItem]) -> None:
+    if not failed:
+        return
+    console.print(f"[bold red]{len(failed)} file(s) could not be processed:[/bold red]")
+    for item in sorted(failed, key=lambda f: f.path.as_posix()):
+        console.print(f"  [red]{item.path.as_posix()}[/red] - {item.error}")
+    console.print()
 
 
 def _human_size(num_bytes: float) -> str:
@@ -54,6 +64,8 @@ def render_preview(
 
 
 def render_verify(result: VerifyResult) -> None:
+    _render_failed(result.failed)
+
     if result.missing:
         console.print("[bold red]Missing in destination[/bold red]")
         for rel in sorted(result.missing, key=lambda p: p.as_posix()):
@@ -75,7 +87,9 @@ def render_verify(result: VerifyResult) -> None:
     if result.ok:
         console.print(f"[green]Verified {result.checked} files - all match.[/green]")
     else:
-        problems = len(result.missing) + len(result.size_mismatch) + len(result.hash_mismatch)
+        problems = (
+            len(result.missing) + len(result.size_mismatch) + len(result.hash_mismatch) + len(result.failed)
+        )
         console.print(f"[bold red]{problems} of {result.checked} files failed verification.[/bold red]")
 
 
@@ -95,6 +109,7 @@ def render_prune_preview(targets: list[Path]) -> None:
 
 
 def render_prune_summary(stats: PruneStats) -> None:
+    _render_failed(stats.failed)
     console.print(
         f"[red]Removed {stats.files_removed} files, {stats.dirs_removed} directories[/red] "
         f"([bold]{_human_size(stats.bytes_removed)}[/bold] freed)"
@@ -102,6 +117,7 @@ def render_prune_summary(stats: PruneStats) -> None:
 
 
 def render_zip_summary(stats: ZipStats, output: Path) -> None:
+    _render_failed(stats.failed)
     console.print(f"[green]Wrote {stats.files_written} files to {output}[/green]")
 
 
@@ -125,6 +141,7 @@ def render_stats(result: ScanResult, preset_names: list[str]) -> None:
 
 
 def render_copy_summary(stats: CopyStats) -> None:
+    _render_failed(stats.failed)
     console.print(
         f"[green]Copied {stats.files_copied} files[/green] "
         f"([bold]{_human_size(stats.bytes_copied)}[/bold])"
