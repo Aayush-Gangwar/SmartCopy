@@ -166,3 +166,37 @@ pytest tests -q
   green (76 tests as of this writing).
 - Open an issue or PR against `main`; small, focused changes are easiest
   to review.
+
+### Building and running the VS Code extension locally
+
+The extension bundles a standalone `smartcopy` binary rather than
+requiring Python, so trying it locally means building that binary first,
+then packaging and installing the extension itself:
+
+```bash
+# 1. Build the CLI binary (needs pyinstaller - included in the dev install above)
+python build.py
+
+# 2. Stage it where the extension looks for it: extension/bin/<platform>-<arch>/
+#    (platform-arch examples: win32-x64, darwin-arm64, linux-x64 - match
+#    whatever OS/CPU you're actually on)
+mkdir extension/bin/win32-x64
+cp dist/smartcopy.exe extension/bin/win32-x64/   # Windows; drop the .exe on macOS/Linux
+
+# 3. Compile and package the extension
+cd extension
+npm install
+npm run compile
+npx @vscode/vsce package
+
+# 4. Install the resulting .vsix into your own VS Code
+code --install-extension smartcopy-vscode-0.1.0.vsix --force
+```
+
+Without step 2, the extension's UI still loads fine, but every action
+(Preview, Copy, Verify, ...) fails immediately with "Failed to launch
+smartcopy binary" — the sidebar has no logic of its own, it only spawns
+the bundled binary. See [`extension/README.md`](extension/README.md) for
+what the extension actually does once it's running, and run
+`npm run compile` / `npm test` inside `extension/` for its own test
+suite.
