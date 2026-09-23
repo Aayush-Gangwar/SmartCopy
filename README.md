@@ -39,7 +39,7 @@ Will Skip
 Not yet published to PyPI. Install from source:
 
 ```bash
-git clone <this-repo>
+git clone https://github.com/Aayush-Gangwar/SmartCopy.git
 cd SmartCopy
 pip install -e .
 ```
