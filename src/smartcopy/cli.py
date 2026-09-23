@@ -66,6 +66,7 @@ def preview(
     ),
 ) -> None:
     root = path.resolve()
+    _require_existing_dir(root)
     rules = _load_rules(root, ignore_file)
     result = scan(root, rules)
     top_copy, top_skip = top_level(root, rules)
@@ -87,6 +88,21 @@ def _resolve_src_dest(paths: list[Path]) -> tuple[Path, Path]:
     raise typer.Exit(code=1)
 
 
+def _require_existing_dir(path: Path) -> None:
+    if not path.is_dir():
+        console.print(f"[red]{path} is not a directory (or doesn't exist).[/red]")
+        raise typer.Exit(code=1)
+
+
+def _guard_dest_not_inside_src(root: Path, dest_root: Path) -> None:
+    if dest_root == root or root in dest_root.parents:
+        console.print(
+            f"[red]Destination {dest_root} is the same as, or inside, the source {root}. "
+            f"Choose a destination outside the source tree.[/red]"
+        )
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def copy(
     paths: list[Path] = typer.Argument(
@@ -106,6 +122,8 @@ def copy(
     src, dest = _resolve_src_dest(paths)
     root = src.resolve()
     dest_root = dest.resolve()
+    _require_existing_dir(root)
+    _guard_dest_not_inside_src(root, dest_root)
     rules = _load_rules(root, ignore_file)
     result = scan(root, rules)
 
@@ -147,6 +165,7 @@ def command_cmd(
     """Generate a robocopy/rsync command (and copy it to the clipboard) instead of copying now."""
     src, dest = _resolve_src_dest(paths)
     root = src.resolve()
+    _require_existing_dir(root)
     rules = _load_rules(root, ignore_file)
     command_text, has_negation = build_command(root, dest.resolve(), rules)
 
@@ -176,6 +195,7 @@ def verify(
     src, dest = _resolve_src_dest(paths)
     root = src.resolve()
     dest_root = dest.resolve()
+    _require_existing_dir(root)
     rules = _load_rules(root, ignore_file)
     result = scan(root, rules)
     verify_result = run_verify(result, dest_root, show_progress=True)
@@ -196,6 +216,7 @@ def zip_cmd(
     ignore_file: Optional[Path] = typer.Option(None, "--ignore-file", help="Path to a .copyignore file."),
 ) -> None:
     root = path.resolve()
+    _require_existing_dir(root)
     rules = _load_rules(root, ignore_file)
     result = scan(root, rules)
     out = (output or root.parent / f"{root.name}-clean.zip").resolve()
@@ -209,6 +230,7 @@ def zip_cmd(
 def stats(path: Path = typer.Argument(Path("."), help="Project root to analyze.")) -> None:
     """Zero-config bloat report - no .copyignore required."""
     root = path.resolve()
+    _require_existing_dir(root)
     preset_names = detect_presets(root)
     rules = IgnoreRules.from_patterns(default_patterns(root))
     result = scan(root, rules)
@@ -224,6 +246,7 @@ def init(
     force: bool = typer.Option(False, "--force", help="Overwrite an existing .copyignore."),
 ) -> None:
     root = path.resolve()
+    _require_existing_dir(root)
     target = root / ".copyignore"
     if target.exists() and not force:
         console.print(f"[red]{target} already exists. Use --force to overwrite.[/red]")
