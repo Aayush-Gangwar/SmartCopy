@@ -4,6 +4,7 @@ from rich.console import Console
 
 from .copier import CopyStats
 from .scanner import ScanResult
+from .zipper import ZipStats
 
 console = Console()
 
@@ -48,6 +49,10 @@ def render_preview(
         f"[red]{len(skipped_paths)} skipped[/red] "
         f"([bold]{_human_size(result.skipped_size)}[/bold] saved, {saved_pct:.1f}%)"
     )
+
+
+def render_zip_summary(stats: ZipStats, output: Path) -> None:
+    console.print(f"[green]Wrote {stats.files_written} files to {output}[/green]")
 
 
 def render_stats(result: ScanResult, preset_names: list[str]) -> None:

@@ -8,8 +8,9 @@ import typer
 from .copier import execute
 from .ignore import IgnoreRules
 from .presets import PRESETS, default_patterns, detect_presets
-from .report import console, render_copy_summary, render_preview, render_stats
+from .report import console, render_copy_summary, render_preview, render_stats, render_zip_summary
 from .scanner import scan, top_level
+from .zipper import create_zip
 
 app = typer.Typer(help="CTRL+A for developers - copy source, skip dependencies.")
 
@@ -81,6 +82,22 @@ def copy(
 
     stats = execute(result, dest_root, show_progress=True)
     render_copy_summary(stats)
+
+
+@app.command(name="zip")
+def zip_cmd(
+    path: Path = typer.Argument(Path("."), help="Project root to zip."),
+    output: Optional[Path] = typer.Option(
+        None, "--output", "-o", help="Output .zip path (default: <project-name>-clean.zip next to the project)."
+    ),
+    ignore_file: Optional[Path] = typer.Option(None, "--ignore-file", help="Path to a .copyignore file."),
+) -> None:
+    root = path.resolve()
+    rules = _load_rules(root, ignore_file)
+    result = scan(root, rules)
+    out = (output or root.parent / f"{root.name}-clean.zip").resolve()
+    zip_stats = create_zip(result, out, show_progress=True)
+    render_zip_summary(zip_stats, out)
 
 
 @app.command()
