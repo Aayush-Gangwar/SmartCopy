@@ -21,4 +21,4 @@ smartcopy = "smartcopy.cli:main"
 packages = ["src/smartcopy"]
 
 [dependency-groups]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "pyinstaller>=6.0"]
