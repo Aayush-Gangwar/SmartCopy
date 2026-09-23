@@ -50,6 +50,25 @@ def render_preview(
     )
 
 
+def render_stats(result: ScanResult, preset_names: list[str]) -> None:
+    console.print(f"[bold]Zero-config scan using built-in defaults:[/bold] {', '.join(preset_names)}")
+    console.print()
+
+    skipped_paths = sorted(result.skipped_dirs + result.skipped_files, key=lambda p: p.as_posix())
+    if skipped_paths:
+        console.print("[bold red]Bloat found[/bold red]")
+        for rel in skipped_paths:
+            console.print(f"  [red]{rel.as_posix()}[/red]")
+        console.print()
+
+    total = result.included_size + result.skipped_size
+    saved_pct = (result.skipped_size / total * 100) if total else 0.0
+    console.print(
+        f"[bold]{_human_size(result.skipped_size)}[/bold] of generated/dependency bloat found "
+        f"out of {_human_size(total)} total ({saved_pct:.1f}%)."
+    )
+
+
 def render_copy_summary(stats: CopyStats) -> None:
     console.print(
         f"[green]Copied {stats.files_copied} files[/green] "

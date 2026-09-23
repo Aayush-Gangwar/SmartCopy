@@ -92,3 +92,12 @@ def detect_presets(root: Path) -> list[str]:
     if (root / "Cargo.toml").exists():
         detected.append("rust")
     return detected or ["general"]
+
+
+def default_patterns(root: Path) -> list[str]:
+    """Zero-config pattern set for `smartcopy stats` - merges every preset
+    detected from the project's marker files, deduplicated in order."""
+    merged: list[str] = []
+    for key in detect_presets(root):
+        merged.extend(PRESETS[key])
+    return list(dict.fromkeys(merged))

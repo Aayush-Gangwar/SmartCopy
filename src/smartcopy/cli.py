@@ -7,8 +7,8 @@ import typer
 
 from .copier import execute
 from .ignore import IgnoreRules
-from .presets import PRESETS, detect_presets
-from .report import console, render_copy_summary, render_preview
+from .presets import PRESETS, default_patterns, detect_presets
+from .report import console, render_copy_summary, render_preview, render_stats
 from .scanner import scan, top_level
 
 app = typer.Typer(help="CTRL+A for developers - copy source, skip dependencies.")
@@ -81,6 +81,16 @@ def copy(
 
     stats = execute(result, dest_root)
     render_copy_summary(stats)
+
+
+@app.command()
+def stats(path: Path = typer.Argument(Path("."), help="Project root to analyze.")) -> None:
+    """Zero-config bloat report - no .copyignore required."""
+    root = path.resolve()
+    preset_names = detect_presets(root)
+    rules = IgnoreRules.from_patterns(default_patterns(root))
+    result = scan(root, rules)
+    render_stats(result, preset_names)
 
 
 @app.command()
