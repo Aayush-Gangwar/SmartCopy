@@ -24,9 +24,11 @@ jobs:
           - os: ubuntu-latest
             platform_dir: linux-x64
             binary_name: smartcopy
-          - os: macos-13 # Intel
-            platform_dir: darwin-x64
-            binary_name: smartcopy
+          # Intel Mac (macos-13, darwin-x64) dropped: GitHub retired that
+          # runner image on 2025-12-04 as Apple wound down x86_64 hardware.
+          # macos-15-intel exists as a stopgap but is itself scheduled to
+          # disappear by August 2027, so Apple Silicon-only is the more
+          # durable choice rather than chasing an expiring label.
           - os: macos-14 # Apple Silicon
             platform_dir: darwin-arm64
             binary_name: smartcopy
@@ -83,7 +85,7 @@ jobs:
             mv "$d"/* "$platform"/
             rmdir "$d"
           done
-          chmod +x linux-x64/smartcopy darwin-x64/smartcopy darwin-arm64/smartcopy
+          chmod +x linux-x64/smartcopy darwin-arm64/smartcopy
 
       - name: Install dependencies
         working-directory: extension
