@@ -108,6 +108,8 @@ jobs:
     name: Create GitHub Release
     needs: [build-cli, build-extension]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # needed to create the Release itself; default GITHUB_TOKEN is read-only otherwise
     steps:
       - uses: actions/download-artifact@v4
         with:
